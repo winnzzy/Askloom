@@ -19,6 +19,9 @@
   "prisma": {
     "seed": "ts-node --transpile-only prisma/seed.ts"
   },
+  "overrides": {
+    "qs": "^6.15.4"
+  },
   "dependencies": {
     "@prisma/client": "^5.22.0",
     "axios": "^1.7.2",

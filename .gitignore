@@ -1,0 +1,13 @@
+# Local environment files
+.env
+.env.local
+.env.*.local
+
+# Dependencies and build output
+node_modules/
+dist/
+coverage/
+
+# Logs and local caches
+*.log
+.DS_Store

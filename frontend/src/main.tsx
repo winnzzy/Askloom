@@ -1,0 +1,23 @@
+import React from "react";
+import ReactDOM from "react-dom/client";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import App from "./App";
+import { AuthProvider } from "./lib/auth";
+import PaymentCallback from "./pages/PaymentCallback";
+import AccountSettings from "./pages/AccountSettings";
+import AdminDashboard from "./pages/AdminDashboard";
+
+ReactDOM.createRoot(document.getElementById("root")!).render(
+  <React.StrictMode>
+    <AuthProvider>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<App />} />
+          <Route path="/account" element={<AccountSettings />} />
+          <Route path="/admin" element={<AdminDashboard />} />
+          <Route path="/payment/callback" element={<PaymentCallback />} />
+        </Routes>
+      </BrowserRouter>
+    </AuthProvider>
+  </React.StrictMode>
+);

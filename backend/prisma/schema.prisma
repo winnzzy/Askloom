@@ -1,0 +1,245 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum BillingInterval {
+  DAY
+  WEEK
+  MONTH
+  YEAR
+  LIFETIME
+}
+
+enum SubscriptionStatus {
+  PENDING
+  ACTIVE
+  PAST_DUE
+  CANCELLED
+  EXPIRED
+}
+
+enum PaymentProvider {
+  FLUTTERWAVE
+  MANUAL
+}
+
+enum PaymentTransactionStatus {
+  PENDING
+  SUCCESSFUL
+  FAILED
+  CANCELLED
+}
+
+enum UsageSubjectType {
+  USER
+  ANONYMOUS
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum TeamRole {
+  OWNER
+  MEMBER
+}
+
+model User {
+  id                      String                   @id @default(uuid()) @db.Uuid
+  email                   String                   @unique
+  passwordHash            String?
+  firstName               String?
+  lastName                String?
+  emailVerified           Boolean                  @default(false)
+  role                    UserRole                 @default(USER)
+  subscriptions           Subscription[]
+  paymentTransactions     PaymentTransaction[]
+  usageCounters           UsageCounter[]
+  refreshSessions         RefreshSession[]
+  passwordResetTokens     PasswordResetToken[]
+  emailVerificationTokens EmailVerificationToken[]
+  searches                SearchHistory[]
+  ownedTeams              Team[]                   @relation("TeamOwner")
+  teamMemberships         TeamMember[]
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
+}
+
+model Plan {
+  id                  String               @id @default(uuid()) @db.Uuid
+  code                String               @unique
+  name                String
+  description         String?
+  price               Decimal              @db.Decimal(10, 2)
+  currency            String
+  billingInterval     BillingInterval
+  dailySearchLimit    Int?
+  scriptHookLimit     Int?
+  isActive            Boolean              @default(true)
+  subscriptions       Subscription[]
+  paymentTransactions PaymentTransaction[]
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+}
+
+model Subscription {
+  id                     String             @id @default(uuid()) @db.Uuid
+  userId                 String             @db.Uuid
+  planId                 String             @db.Uuid
+  status                 SubscriptionStatus @default(PENDING)
+  provider               PaymentProvider
+  providerSubscriptionId String?            @unique
+  startsAt               DateTime?
+  currentPeriodStart     DateTime?
+  currentPeriodEnd       DateTime?
+  cancelledAt            DateTime?
+  user                   User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan                   Plan               @relation(fields: [planId], references: [id])
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
+
+  @@index([userId, status])
+  @@index([planId])
+  @@index([provider])
+}
+
+model PaymentTransaction {
+  id                    String                   @id @default(uuid()) @db.Uuid
+  userId                String                   @db.Uuid
+  planId                String                   @db.Uuid
+  txRef                 String                   @unique
+  providerTransactionId String?                  @unique
+  amount                Decimal                  @db.Decimal(10, 2)
+  currency              String
+  status                PaymentTransactionStatus @default(PENDING)
+  provider              PaymentProvider          @default(FLUTTERWAVE)
+  checkoutUrl           String?
+  rawResponse           Json?
+  verifiedAt            DateTime?
+  user                  User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan                  Plan                     @relation(fields: [planId], references: [id])
+  createdAt             DateTime                 @default(now())
+  updatedAt             DateTime                 @updatedAt
+
+  @@index([userId, status])
+  @@index([planId])
+  @@index([provider, status])
+}
+
+model WebhookEvent {
+  id              String          @id @default(uuid()) @db.Uuid
+  provider        PaymentProvider
+  providerEventId String?
+  eventType       String
+  payload         Json
+  processed       Boolean         @default(false)
+  processingError String?
+  receivedAt      DateTime        @default(now())
+  processedAt     DateTime?
+
+  @@unique([provider, providerEventId])
+  @@index([provider, eventType])
+  @@index([processed, receivedAt])
+}
+
+model UsageCounter {
+  id              String           @id @default(uuid()) @db.Uuid
+  userId          String?          @db.Uuid
+  anonymousKey    String?
+  subjectType     UsageSubjectType
+  subjectKey      String
+  usageDate       DateTime         @db.Date
+  searchCount     Int              @default(0)
+  scriptHookCount Int              @default(0)
+  user            User?            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@unique([subjectType, subjectKey, usageDate])
+  @@index([userId, usageDate])
+  @@index([anonymousKey, usageDate])
+}
+
+model RefreshSession {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model PasswordResetToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model EmailVerificationToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model SearchHistory {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  seed      String
+  sources   Json?
+  grouped   Json
+  total     Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
+
+model Team {
+  id          String       @id @default(uuid()) @db.Uuid
+  name        String
+  ownerId     String       @db.Uuid
+  owner       User         @relation("TeamOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  memberships TeamMember[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([ownerId])
+}
+
+model TeamMember {
+  id        String   @id @default(uuid()) @db.Uuid
+  teamId    String   @db.Uuid
+  userId    String   @db.Uuid
+  role      TeamRole @default(MEMBER)
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([teamId, userId])
+  @@index([userId])
+}

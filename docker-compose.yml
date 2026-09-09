@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: askloom-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: askloom
+      POSTGRES_PASSWORD: askloom_dev_password
+      POSTGRES_DB: askloom
+    ports:
+      - "55432:5432"
+    volumes:
+      - askloom_postgres_data:/var/lib/postgresql/data
+
+volumes:
+  askloom_postgres_data:

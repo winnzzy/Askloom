@@ -7,7 +7,7 @@ import { config } from "../config/env";
 import prisma from "../lib/prisma";
 import { getActivePlanForUser } from "../services/subscription";
 import { addDays, addHours, randomToken, tokenHash } from "../services/tokens";
-import { requireAuth } from "../utils/authMiddleware";
+import { JWT_AUDIENCE, JWT_ISSUER, requireAuth } from "../utils/authMiddleware";
 
 const router = Router();
 const PASSWORD_COST = 12;
@@ -57,6 +57,9 @@ function issueAccessToken(user: { id: string; email: string }): string {
 
   return jwt.sign({ id: user.id, email: user.email }, config.jwtSecret, {
     expiresIn: ACCESS_TOKEN_EXPIRES_IN,
+    issuer: JWT_ISSUER,
+    audience: JWT_AUDIENCE,
+    algorithm: "HS256",
   });
 }
 

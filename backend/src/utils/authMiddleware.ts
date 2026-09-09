@@ -7,6 +7,9 @@ interface AuthTokenPayload {
   email: string;
 }
 
+export const JWT_ISSUER = "askloom";
+export const JWT_AUDIENCE = "askloom-api";
+
 // Attaches req.user if a valid token is present. Does NOT block the request
 // when absent, so anonymous users still get free-tier access in suggest.ts.
 export function optionalAuth(req: Request, _res: Response, next: NextFunction) {
@@ -14,8 +17,12 @@ export function optionalAuth(req: Request, _res: Response, next: NextFunction) {
   if (header?.startsWith("Bearer ") && config.jwtSecret) {
     try {
       const token = header.slice(7);
-      const decoded = jwt.verify(token, config.jwtSecret) as AuthTokenPayload;
-      if (decoded.id && decoded.email) {
+      const decoded = jwt.verify(token, config.jwtSecret, {
+        algorithms: ["HS256"],
+        issuer: JWT_ISSUER,
+        audience: JWT_AUDIENCE,
+      }) as AuthTokenPayload;
+      if (typeof decoded.id === "string" && typeof decoded.email === "string") {
         req.user = { id: decoded.id, email: decoded.email };
       }
     } catch {

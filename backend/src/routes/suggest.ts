@@ -6,6 +6,7 @@ import { clusterResults, groupByCategory } from "../utils/cluster";
 import { getActivePlanForUser } from "../services/subscription";
 import { checkAndIncrementUsage } from "../services/usage";
 import prisma from "../lib/prisma";
+import { asyncHandler } from "../utils/asyncHandler";
 
 const router = Router();
 
@@ -19,7 +20,7 @@ function toJson(value: unknown): Prisma.InputJsonValue {
   return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 }
 
-router.post("/suggest", async (req: Request, res: Response) => {
+router.post("/suggest", asyncHandler(async (req: Request, res: Response) => {
   const { seed, sources } = req.body as {
     seed?: string;
     sources?: ("google" | "youtube")[];
@@ -85,6 +86,6 @@ router.post("/suggest", async (req: Request, res: Response) => {
   }
 
   res.json({ seed, cached: false, ...payload });
-});
+}));
 
 export default router;

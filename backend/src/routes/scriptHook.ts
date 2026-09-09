@@ -3,13 +3,14 @@ import axios from "axios";
 import { config } from "../config/env";
 import { getActivePlanForUser } from "../services/subscription";
 import { checkAndIncrementUsage } from "../services/usage";
+import { asyncHandler } from "../utils/asyncHandler";
 
 const router = Router();
 
 const GEMINI_ENDPOINT =
   "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
 
-router.post("/script-hook", async (req: Request, res: Response) => {
+router.post("/script-hook", asyncHandler(async (req: Request, res: Response) => {
   if (!req.user) {
     return res.status(401).json({ error: "Authentication required" });
   }
@@ -60,6 +61,6 @@ Return them as a plain numbered list, nothing else.`;
   } catch (err) {
     res.status(502).json({ error: "Failed to generate script hooks" });
   }
-});
+}));
 
 export default router;

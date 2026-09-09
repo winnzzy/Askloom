@@ -12,6 +12,7 @@ import {
   toJson,
   verifyFlutterwaveTransaction,
 } from "../services/payments";
+import { asyncHandler } from "../utils/asyncHandler";
 import { requireAuth } from "../utils/authMiddleware";
 
 const router = Router();
@@ -20,7 +21,7 @@ const FLW_BASE_URL = "https://api.flutterwave.com/v3";
 router.post(
   "/payment/initialize",
   requireAuth,
-  async (req: Request, res: Response) => {
+  asyncHandler(async (req: Request, res: Response) => {
     const { plan: planCode } = req.body as { plan?: string };
 
     if (!planCode) {
@@ -105,10 +106,10 @@ router.post(
 
       res.status(502).json({ error: "Failed to initialize payment" });
     }
-  }
+  })
 );
 
-router.get("/payment/verify/:transactionId", async (req: Request, res: Response) => {
+router.get("/payment/verify/:transactionId", asyncHandler(async (req: Request, res: Response) => {
   const { transactionId } = req.params;
 
   if (!config.flutterwave.secretKey) {
@@ -131,9 +132,9 @@ router.get("/payment/verify/:transactionId", async (req: Request, res: Response)
   } catch {
     res.status(502).json({ error: "Verification failed" });
   }
-});
+}));
 
-router.post("/payment/webhook", async (req: Request, res: Response) => {
+router.post("/payment/webhook", asyncHandler(async (req: Request, res: Response) => {
   const signature = req.headers["verif-hash"];
 
   if (!signature || signature !== config.flutterwave.secretHash) {
@@ -178,6 +179,6 @@ router.post("/payment/webhook", async (req: Request, res: Response) => {
   } catch {
     res.status(200).end();
   }
-});
+}));
 
 export default router;

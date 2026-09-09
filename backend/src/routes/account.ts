@@ -3,6 +3,7 @@ import { SubscriptionStatus, TeamRole } from "@prisma/client";
 import { z } from "zod";
 import prisma from "../lib/prisma";
 import { getActivePlanForUser } from "../services/subscription";
+import { asyncHandler } from "../utils/asyncHandler";
 import { requireAuth } from "../utils/authMiddleware";
 
 const router = Router();
@@ -45,7 +46,7 @@ function groupedToRows(grouped: unknown) {
   return rows;
 }
 
-router.get("/account/billing", async (req: Request, res: Response) => {
+router.get("/account/billing", asyncHandler(async (req: Request, res: Response) => {
   const [activePlan, subscriptions, transactions] = await Promise.all([
     getActivePlanForUser(req.user!.id),
     prisma.subscription.findMany({
@@ -84,27 +85,27 @@ router.get("/account/billing", async (req: Request, res: Response) => {
       createdAt: transaction.createdAt,
     })),
   });
-});
+}));
 
-router.post("/account/subscription/cancel", async (req: Request, res: Response) => {
+router.post("/account/subscription/cancel", asyncHandler(async (req: Request, res: Response) => {
   const result = await prisma.subscription.updateMany({
     where: { userId: req.user!.id, status: SubscriptionStatus.ACTIVE },
     data: { status: SubscriptionStatus.CANCELLED, cancelledAt: new Date() },
   });
 
   res.json({ ok: true, cancelled: result.count });
-});
+}));
 
-router.post("/account/subscription/downgrade", async (req: Request, res: Response) => {
+router.post("/account/subscription/downgrade", asyncHandler(async (req: Request, res: Response) => {
   const result = await prisma.subscription.updateMany({
     where: { userId: req.user!.id, status: SubscriptionStatus.ACTIVE },
     data: { status: SubscriptionStatus.CANCELLED, cancelledAt: new Date() },
   });
 
   res.json({ ok: true, plan: "free", cancelled: result.count });
-});
+}));
 
-router.get("/account/searches", async (req: Request, res: Response) => {
+router.get("/account/searches", asyncHandler(async (req: Request, res: Response) => {
   const searches = await prisma.searchHistory.findMany({
     where: { userId: req.user!.id },
     orderBy: { createdAt: "desc" },
@@ -120,9 +121,9 @@ router.get("/account/searches", async (req: Request, res: Response) => {
       createdAt: search.createdAt,
     })),
   });
-});
+}));
 
-router.get("/account/searches/:id/export.csv", async (req: Request, res: Response) => {
+router.get("/account/searches/:id/export.csv", asyncHandler(async (req: Request, res: Response) => {
   const search = await prisma.searchHistory.findFirst({
     where: { id: req.params.id, userId: req.user!.id },
   });
@@ -145,9 +146,9 @@ router.get("/account/searches/:id/export.csv", async (req: Request, res: Respons
     `attachment; filename="askloom-${search.seed.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}.csv"`
   );
   return res.send(lines.join("\n"));
-});
+}));
 
-router.get("/account/team", async (req: Request, res: Response) => {
+router.get("/account/team", asyncHandler(async (req: Request, res: Response) => {
   const teams = await prisma.team.findMany({
     where: {
       OR: [{ ownerId: req.user!.id }, { memberships: { some: { userId: req.user!.id } } }],
@@ -162,9 +163,9 @@ router.get("/account/team", async (req: Request, res: Response) => {
   });
 
   res.json({ teams });
-});
+}));
 
-router.post("/account/team", async (req: Request, res: Response) => {
+router.post("/account/team", asyncHandler(async (req: Request, res: Response) => {
   const parsed = teamSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid team name" });
 
@@ -180,9 +181,9 @@ router.post("/account/team", async (req: Request, res: Response) => {
   });
 
   res.status(201).json({ team });
-});
+}));
 
-router.post("/account/team/:teamId/members", async (req: Request, res: Response) => {
+router.post("/account/team/:teamId/members", asyncHandler(async (req: Request, res: Response) => {
   const parsed = memberSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid member email" });
 
@@ -201,6 +202,6 @@ router.post("/account/team/:teamId/members", async (req: Request, res: Response)
   });
 
   res.status(201).json({ member });
-});
+}));
 
 export default router;

@@ -2,12 +2,13 @@ import { Router, Request, Response, NextFunction } from "express";
 import { SubscriptionStatus, UserRole } from "@prisma/client";
 import prisma from "../lib/prisma";
 import { retryPendingWebhookEvents } from "../services/payments";
+import { asyncHandler } from "../utils/asyncHandler";
 import { requireAuth } from "../utils/authMiddleware";
 
 const router = Router();
 
 router.use(requireAuth);
-router.use(async (req: Request, res: Response, next: NextFunction) => {
+router.use(asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
   const user = await prisma.user.findUnique({
     where: { id: req.user!.id },
     select: { role: true },
@@ -18,9 +19,9 @@ router.use(async (req: Request, res: Response, next: NextFunction) => {
   }
 
   next();
-});
+}));
 
-router.get("/admin/overview", async (_req: Request, res: Response) => {
+router.get("/admin/overview", asyncHandler(async (_req: Request, res: Response) => {
   const [
     users,
     activeSubscriptions,
@@ -63,11 +64,11 @@ router.get("/admin/overview", async (_req: Request, res: Response) => {
       createdAt: transaction.createdAt,
     })),
   });
-});
+}));
 
-router.post("/admin/webhooks/retry", async (_req: Request, res: Response) => {
+router.post("/admin/webhooks/retry", asyncHandler(async (_req: Request, res: Response) => {
   const result = await retryPendingWebhookEvents();
   res.json(result);
-});
+}));
 
 export default router;

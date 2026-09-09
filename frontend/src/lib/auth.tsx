@@ -29,6 +29,7 @@ export interface AuthPlan {
   billingInterval: string;
   dailySearchLimit: number | null;
   scriptHookLimit: number | null;
+  teamSeatLimit?: number | null;
 }
 
 interface AuthState {

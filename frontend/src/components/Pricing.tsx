@@ -39,7 +39,12 @@ const PLANS = [
 
 function featuresForPlan(plan: Plan): string[] {
   if (plan.code === "agency") {
-    return ["Everything in Creator", "Team seats", "Saved topic history", "Bulk export"];
+    return [
+      "Everything in Creator",
+      `${plan.teamSeatLimit ?? 5} team seats`,
+      "Saved topic history",
+      "Bulk export",
+    ];
   }
 
   return [

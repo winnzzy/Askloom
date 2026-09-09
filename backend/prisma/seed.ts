@@ -12,6 +12,7 @@ async function main() {
       billingInterval: BillingInterval.MONTH,
       dailySearchLimit: null,
       scriptHookLimit: null,
+      teamSeatLimit: 0,
       isActive: true,
     },
     create: {
@@ -22,6 +23,7 @@ async function main() {
       billingInterval: BillingInterval.MONTH,
       dailySearchLimit: null,
       scriptHookLimit: null,
+      teamSeatLimit: 0,
       isActive: true,
     },
   });
@@ -35,6 +37,7 @@ async function main() {
       billingInterval: BillingInterval.MONTH,
       dailySearchLimit: null,
       scriptHookLimit: null,
+      teamSeatLimit: 5,
       isActive: true,
     },
     create: {
@@ -45,6 +48,7 @@ async function main() {
       billingInterval: BillingInterval.MONTH,
       dailySearchLimit: null,
       scriptHookLimit: null,
+      teamSeatLimit: 5,
       isActive: true,
     },
   });

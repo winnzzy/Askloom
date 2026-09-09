@@ -20,6 +20,7 @@ router.get("/plans", async (_req: Request, res: Response) => {
         billingInterval: plan.billingInterval,
         dailySearchLimit: plan.dailySearchLimit,
         scriptHookLimit: plan.scriptHookLimit,
+        teamSeatLimit: plan.teamSeatLimit,
       })),
     });
   } catch {

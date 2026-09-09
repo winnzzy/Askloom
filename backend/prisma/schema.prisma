@@ -81,6 +81,7 @@ model Plan {
   billingInterval     BillingInterval
   dailySearchLimit    Int?
   scriptHookLimit     Int?
+  teamSeatLimit       Int?
   isActive            Boolean              @default(true)
   subscriptions       Subscription[]
   paymentTransactions PaymentTransaction[]

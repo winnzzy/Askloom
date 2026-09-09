@@ -15,6 +15,7 @@ export interface Plan {
   billingInterval: string;
   dailySearchLimit: number | null;
   scriptHookLimit: number | null;
+  teamSeatLimit?: number | null;
 }
 
 interface AuthResponse {

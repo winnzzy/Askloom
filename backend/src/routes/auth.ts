@@ -123,6 +123,7 @@ function publicPlan(plan: Awaited<ReturnType<typeof getActivePlanForUser>>) {
     billingInterval: plan.billingInterval,
     dailySearchLimit: plan.dailySearchLimit,
     scriptHookLimit: plan.scriptHookLimit,
+    teamSeatLimit: plan.teamSeatLimit,
   };
 }
 

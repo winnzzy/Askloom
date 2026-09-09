@@ -21,6 +21,7 @@ function planPayload(plan: Awaited<ReturnType<typeof getActivePlanForUser>>) {
     price: plan.price.toString(),
     currency: plan.currency,
     billingInterval: plan.billingInterval,
+    teamSeatLimit: plan.teamSeatLimit,
   };
 }
 
@@ -229,6 +230,20 @@ router.post("/account/team/:teamId/members", asyncHandler(async (req: Request, r
 
   const user = await prisma.user.findUnique({ where: { email: parsed.data.email } });
   if (!user) return res.status(404).json({ error: "No user with that email" });
+
+  const existingMember = await prisma.teamMember.findUnique({
+    where: { teamId_userId: { teamId: team.id, userId: user.id } },
+  });
+  if (existingMember) {
+    return res.status(200).json({ member: existingMember });
+  }
+
+  if (agencyPlan.teamSeatLimit !== null) {
+    const seatCount = await prisma.teamMember.count({ where: { teamId: team.id } });
+    if (seatCount >= agencyPlan.teamSeatLimit) {
+      return res.status(403).json({ error: "Team seat limit reached." });
+    }
+  }
 
   const member = await prisma.teamMember.upsert({
     where: { teamId_userId: { teamId: team.id, userId: user.id } },

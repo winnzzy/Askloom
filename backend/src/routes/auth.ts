@@ -5,6 +5,7 @@ import rateLimit from "express-rate-limit";
 import { z } from "zod";
 import { config } from "../config/env";
 import prisma from "../lib/prisma";
+import { sendPasswordResetEmail, sendVerificationEmail } from "../services/email";
 import { getActivePlanForUser } from "../services/subscription";
 import { addDays, addHours, randomToken, tokenHash } from "../services/tokens";
 import { JWT_AUDIENCE, JWT_ISSUER, requireAuth } from "../utils/authMiddleware";
@@ -189,6 +190,7 @@ router.post("/auth/signup", async (req: Request, res: Response) => {
         expiresAt: addDays(new Date(), 2),
       },
     });
+    await sendVerificationEmail(user.email, verificationToken);
 
     return sendAuthResponse(res.status(201), user);
   } catch (error) {
@@ -315,6 +317,7 @@ router.post("/auth/password/forgot", async (req: Request, res: Response) => {
           expiresAt: addHours(new Date(), 1),
         },
       });
+      await sendPasswordResetEmail(user.email, resetToken);
       if (config.nodeEnv !== "production") response.resetToken = resetToken;
     }
     return res.json(response);
@@ -370,6 +373,7 @@ router.post("/auth/email/verification", requireAuth, async (req: Request, res: R
         expiresAt: addDays(new Date(), 2),
       },
     });
+    await sendVerificationEmail(user.email, verificationToken);
     if (config.nodeEnv !== "production") response.verificationToken = verificationToken;
     return res.json(response);
   } catch (error) {

@@ -63,6 +63,11 @@ Backend:
 - `FLW_SECRET_HASH`
 - `FLW_REDIRECT_URL`
 - `GEMINI_API_KEY`
+- `SMTP_HOST`
+- `SMTP_PORT`
+- `SMTP_USER`
+- `SMTP_PASS`
+- `EMAIL_FROM`
 
 Frontend:
 
@@ -99,6 +104,7 @@ Before live payments:
 - Set `FLW_REDIRECT_URL` to the deployed frontend callback URL.
 - Configure the Flutterwave webhook URL as `https://your-api-domain/api/payment/webhook`.
 - Set the same webhook secret hash in Flutterwave and `FLW_SECRET_HASH`.
+- Configure SMTP settings so password reset and email verification emails are delivered.
 
 ## Verification
 
@@ -113,7 +119,6 @@ npm run build
 
 ## Current Gaps
 
-- Production email delivery is not wired yet; email verification and password reset expose tokens only in non-production.
 - Webhook retry is admin-triggered, not a background worker queue.
 - Admin tools are intentionally small and should grow with operational needs.
 - Audit findings from npm remain to be triaged.

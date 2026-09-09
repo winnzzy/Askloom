@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import {
   addTeamMember,
   cancelSubscription,
@@ -12,6 +12,7 @@ import {
   fetchTeam,
   requestEmailVerification,
   requestPasswordReset,
+  resetPassword,
   updateProfile,
   verifyEmail,
 } from "../lib/api";
@@ -20,6 +21,7 @@ import { useAuth } from "../lib/auth";
 export default function AccountSettings() {
   const { user, token, login } = useAuth();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [firstName, setFirstName] = useState(user?.firstName ?? "");
   const [lastName, setLastName] = useState(user?.lastName ?? "");
   const [billing, setBilling] = useState<any>(null);
@@ -44,6 +46,32 @@ export default function AccountSettings() {
       })
       .catch((error: Error) => setNotice(error.message));
   }, [navigate, token, user]);
+
+  useEffect(() => {
+    const verificationToken = searchParams.get("verificationToken");
+    if (verificationToken) {
+      verifyEmail(verificationToken)
+        .then(async () => {
+          await refreshAccount();
+          setNotice("Email verified.");
+          setSearchParams({});
+        })
+        .catch((error: Error) => setNotice(error.message));
+      return;
+    }
+
+    const resetToken = searchParams.get("resetToken");
+    if (resetToken) {
+      const nextPassword = window.prompt("Enter a new password for AskLoom");
+      if (!nextPassword) return;
+      resetPassword(resetToken, nextPassword)
+        .then(() => {
+          setNotice("Password updated. Please log in again.");
+          setSearchParams({});
+        })
+        .catch((error: Error) => setNotice(error.message));
+    }
+  }, [searchParams, setSearchParams]);
 
   async function refreshAccount() {
     if (!token) return;

@@ -15,6 +15,11 @@ const envSchema = z.object({
   FLW_SECRET_HASH: z.string().min(1).optional(),
   FLW_REDIRECT_URL: z.string().url().optional(),
   GEMINI_API_KEY: z.string().min(1).optional(),
+  SMTP_HOST: z.string().min(1).optional(),
+  SMTP_PORT: z.coerce.number().int().positive().optional(),
+  SMTP_USER: z.string().min(1).optional(),
+  SMTP_PASS: z.string().min(1).optional(),
+  EMAIL_FROM: z.string().min(1).optional(),
 });
 
 const requiredInProduction = [
@@ -24,6 +29,9 @@ const requiredInProduction = [
   "FLW_SECRET_KEY",
   "FLW_SECRET_HASH",
   "GEMINI_API_KEY",
+  "SMTP_HOST",
+  "SMTP_PORT",
+  "EMAIL_FROM",
 ] as const;
 
 const parsed = envSchema.safeParse(process.env);
@@ -56,4 +64,11 @@ export const config = {
     redirectUrl: env.FLW_REDIRECT_URL,
   },
   geminiApiKey: env.GEMINI_API_KEY,
+  email: {
+    smtpHost: env.SMTP_HOST,
+    smtpPort: env.SMTP_PORT ?? 587,
+    smtpUser: env.SMTP_USER,
+    smtpPass: env.SMTP_PASS,
+    from: env.EMAIL_FROM,
+  },
 } as const;

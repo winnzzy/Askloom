@@ -68,6 +68,8 @@ Backend:
 - `SMTP_USER`
 - `SMTP_PASS`
 - `EMAIL_FROM`
+- `WEBHOOK_WORKER_ENABLED`
+- `WEBHOOK_RETRY_INTERVAL_MS`
 
 Frontend:
 
@@ -119,6 +121,6 @@ npm run build
 
 ## Current Gaps
 
-- Webhook retry is admin-triggered, not a background worker queue.
+- Webhook retry runs in-process. For high volume, move it to a separate queue-backed worker.
 - Admin tools are intentionally small and should grow with operational needs.
 - Audit findings from npm remain to be triaged.

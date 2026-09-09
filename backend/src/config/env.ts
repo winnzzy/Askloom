@@ -20,6 +20,11 @@ const envSchema = z.object({
   SMTP_USER: z.string().min(1).optional(),
   SMTP_PASS: z.string().min(1).optional(),
   EMAIL_FROM: z.string().min(1).optional(),
+  WEBHOOK_WORKER_ENABLED: z
+    .enum(["true", "false"])
+    .default("true")
+    .transform((value) => value === "true"),
+  WEBHOOK_RETRY_INTERVAL_MS: z.coerce.number().int().positive().default(60000),
 });
 
 const requiredInProduction = [
@@ -70,5 +75,9 @@ export const config = {
     smtpUser: env.SMTP_USER,
     smtpPass: env.SMTP_PASS,
     from: env.EMAIL_FROM,
+  },
+  webhookWorker: {
+    enabled: env.WEBHOOK_WORKER_ENABLED,
+    retryIntervalMs: env.WEBHOOK_RETRY_INTERVAL_MS,
   },
 } as const;

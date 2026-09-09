@@ -2,6 +2,11 @@ import { BillingInterval, SubscriptionStatus } from "@prisma/client";
 import prisma from "../lib/prisma";
 
 export async function getActivePlanForUser(userId: string) {
+  const subscription = await getActiveSubscriptionForUser(userId);
+  return subscription?.plan ?? null;
+}
+
+export async function getActiveSubscriptionForUser(userId: string) {
   const now = new Date();
 
   const subscription = await prisma.subscription.findFirst({
@@ -14,7 +19,7 @@ export async function getActivePlanForUser(userId: string) {
     orderBy: { createdAt: "desc" },
   });
 
-  return subscription?.plan ?? null;
+  return subscription ?? null;
 }
 
 export async function isUserPaid(userId: string): Promise<boolean> {

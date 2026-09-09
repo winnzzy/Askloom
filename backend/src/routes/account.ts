@@ -2,7 +2,7 @@ import { Router, Request, Response } from "express";
 import { SubscriptionStatus, TeamRole } from "@prisma/client";
 import { z } from "zod";
 import prisma from "../lib/prisma";
-import { getActivePlanForUser } from "../services/subscription";
+import { getActivePlanForUser, getActiveSubscriptionForUser } from "../services/subscription";
 import { asyncHandler } from "../utils/asyncHandler";
 import { requireAuth } from "../utils/authMiddleware";
 
@@ -44,6 +44,16 @@ function groupedToRows(grouped: unknown) {
   }
 
   return rows;
+}
+
+async function requireAgencyPlan(userId: string, res: Response) {
+  const plan = await getActivePlanForUser(userId);
+  if (plan?.code !== "agency") {
+    res.status(403).json({ error: "Team seats are available on the Agency plan." });
+    return null;
+  }
+
+  return plan;
 }
 
 router.get("/account/billing", asyncHandler(async (req: Request, res: Response) => {
@@ -88,12 +98,31 @@ router.get("/account/billing", asyncHandler(async (req: Request, res: Response) 
 }));
 
 router.post("/account/subscription/cancel", asyncHandler(async (req: Request, res: Response) => {
-  const result = await prisma.subscription.updateMany({
-    where: { userId: req.user!.id, status: SubscriptionStatus.ACTIVE },
-    data: { status: SubscriptionStatus.CANCELLED, cancelledAt: new Date() },
+  const subscription = await getActiveSubscriptionForUser(req.user!.id);
+  if (!subscription) {
+    return res.status(404).json({ error: "No active subscription found" });
+  }
+
+  const now = new Date();
+  const shouldEndImmediately =
+    !subscription.currentPeriodEnd || subscription.currentPeriodEnd <= now;
+
+  const updated = await prisma.subscription.update({
+    where: { id: subscription.id },
+    data: {
+      status: shouldEndImmediately ? SubscriptionStatus.CANCELLED : SubscriptionStatus.ACTIVE,
+      cancelledAt: now,
+    },
+    include: { plan: true },
   });
 
-  res.json({ ok: true, cancelled: result.count });
+  res.json({
+    ok: true,
+    status: updated.status,
+    currentPeriodEnd: updated.currentPeriodEnd,
+    cancelledAt: updated.cancelledAt,
+    accessEndsAt: updated.currentPeriodEnd,
+  });
 }));
 
 router.post("/account/subscription/downgrade", asyncHandler(async (req: Request, res: Response) => {
@@ -166,6 +195,9 @@ router.get("/account/team", asyncHandler(async (req: Request, res: Response) => 
 }));
 
 router.post("/account/team", asyncHandler(async (req: Request, res: Response) => {
+  const agencyPlan = await requireAgencyPlan(req.user!.id, res);
+  if (!agencyPlan) return;
+
   const parsed = teamSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid team name" });
 
@@ -184,6 +216,9 @@ router.post("/account/team", asyncHandler(async (req: Request, res: Response) =>
 }));
 
 router.post("/account/team/:teamId/members", asyncHandler(async (req: Request, res: Response) => {
+  const agencyPlan = await requireAgencyPlan(req.user!.id, res);
+  if (!agencyPlan) return;
+
   const parsed = memberSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid member email" });
 

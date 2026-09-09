@@ -1,5 +1,6 @@
 import { Router, Request, Response } from "express";
 import axios from "axios";
+import { z } from "zod";
 import { config } from "../config/env";
 import { getActivePlanForUser } from "../services/subscription";
 import { checkAndIncrementUsage } from "../services/usage";
@@ -9,6 +10,9 @@ const router = Router();
 
 const GEMINI_ENDPOINT =
   "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
+const scriptHookSchema = z.object({
+  phrase: z.string().trim().min(3).max(240),
+});
 
 router.post("/script-hook", asyncHandler(async (req: Request, res: Response) => {
   if (!req.user) {
@@ -22,8 +26,9 @@ router.post("/script-hook", asyncHandler(async (req: Request, res: Response) => 
     });
   }
 
-  const { phrase } = req.body as { phrase?: string };
-  if (!phrase) return res.status(400).json({ error: "phrase is required" });
+  const parsed = scriptHookSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid phrase" });
+  const { phrase } = parsed.data;
 
   const apiKey = config.geminiApiKey;
   if (!apiKey) {

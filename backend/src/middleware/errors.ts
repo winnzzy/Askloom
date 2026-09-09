@@ -7,11 +7,22 @@ export function notFoundHandler(req: Request, res: Response) {
 
 export function errorHandler(
   err: unknown,
-  _req: Request,
+  req: Request,
   res: Response,
   _next: NextFunction
 ) {
   if (res.headersSent) return;
+
+  const error = err instanceof Error ? err : new Error("Unknown error");
+  console.error(
+    JSON.stringify({
+      level: "error",
+      message: error.message,
+      method: req.method,
+      path: req.path,
+      stack: process.env.NODE_ENV === "production" ? undefined : error.stack,
+    })
+  );
 
   if (err instanceof SyntaxError && "body" in err) {
     return res.status(400).json({ error: "Invalid JSON body" });

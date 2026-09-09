@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express";
 import NodeCache from "node-cache";
 import { Prisma } from "@prisma/client";
+import { z } from "zod";
 import { gatherSuggestions } from "../utils/autocomplete";
 import { clusterResults, groupByCategory } from "../utils/cluster";
 import { getActivePlanForUser } from "../services/subscription";
@@ -15,20 +16,26 @@ const router = Router();
 const cache = new NodeCache({ stdTTL: 60 * 60 * 24 });
 
 const FREE_DAILY_LIMIT = 5;
+const suggestSchema = z.object({
+  seed: z.string().trim().min(1).max(120),
+  sources: z
+    .array(z.enum(["google", "youtube"]))
+    .min(1)
+    .max(2)
+    .optional()
+    .transform((sources): ("google" | "youtube")[] => sources ?? ["google", "youtube"]),
+});
 
 function toJson(value: unknown): Prisma.InputJsonValue {
   return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 }
 
 router.post("/suggest", asyncHandler(async (req: Request, res: Response) => {
-  const { seed, sources } = req.body as {
-    seed?: string;
-    sources?: ("google" | "youtube")[];
-  };
-
-  if (!seed || !seed.trim()) {
-    return res.status(400).json({ error: "seed keyword is required" });
+  const parsed = suggestSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Invalid search request" });
   }
+  const { seed, sources } = parsed.data;
 
   const userId = req.user?.id;
   const activePlan = userId ? await getActivePlanForUser(userId) : null;
@@ -48,7 +55,7 @@ router.post("/suggest", asyncHandler(async (req: Request, res: Response) => {
     });
   }
 
-  const cacheKey = `${seed.toLowerCase().trim()}::${(sources || ["google", "youtube"]).join(",")}`;
+  const cacheKey = `${seed.toLowerCase()}::${sources.join(",")}`;
   const cached = cache.get(cacheKey);
   if (cached) {
     if (userId) {
@@ -56,8 +63,8 @@ router.post("/suggest", asyncHandler(async (req: Request, res: Response) => {
       await prisma.searchHistory.create({
         data: {
           userId,
-          seed: seed.trim(),
-          sources: toJson(sources || ["google", "youtube"]),
+          seed,
+          sources: toJson(sources),
           grouped: toJson(cachedPayload.grouped),
           total: cachedPayload.total,
         },
@@ -77,8 +84,8 @@ router.post("/suggest", asyncHandler(async (req: Request, res: Response) => {
     await prisma.searchHistory.create({
       data: {
         userId,
-        seed: seed.trim(),
-        sources: toJson(sources || ["google", "youtube"]),
+        seed,
+        sources: toJson(sources),
         grouped: toJson(grouped),
         total: clustered.length,
       },

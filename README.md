@@ -1,75 +1,119 @@
 # AskLoom
 
-An AnswerThePublic-style content-question research tool, built for creators:
-pulls Google + YouTube autocomplete data for a seed keyword, clusters it into
-questions/comparisons/prepositions/alphabeticals, renders it as a radial
-"search cloud" (D3), and lets you turn any result into a script hook via
-Gemini. Payments run through **Flutterwave**.
+AskLoom is an AnswerThePublic-style research SaaS for content creators. It pulls
+Google and YouTube autocomplete data, clusters ideas into question-style groups,
+renders a D3 radial search cloud, and can turn results into short video hooks
+with Gemini.
 
-## Structure
+Payments use Flutterwave. Paid plans are stored in Postgres and priced in USD.
 
+## Stack
+
+- Frontend: React, Vite, TypeScript, D3
+- Backend: Express, TypeScript, Prisma, Postgres
+- Auth: short-lived JWT access tokens plus HTTP-only refresh-session cookies
+- Payments: Flutterwave checkout, redirect verification, and authoritative webhook processing
+
+## Local Setup
+
+Start Postgres:
+
+```bash
+docker compose up -d postgres
 ```
-askloom/
-  backend/     Express + TypeScript API
-  frontend/    React + Vite + D3
-```
 
-## Backend setup
+Backend:
 
 ```bash
 cd backend
 npm install
-cp .env.example .env    # fill in your real keys
-npm run dev              # http://localhost:4000
+cp .env.example .env
+npm run prisma:migrate
+npm run prisma:seed
+npm run dev
 ```
 
-### Flutterwave setup (the payment part)
-
-1. Create a Flutterwave account → Dashboard → **Settings > API Keys**. Copy
-   your **Public Key** and **Secret Key** into `.env` as `FLW_PUBLIC_KEY` /
-   `FLW_SECRET_KEY`. Use the `TEST` keys first.
-2. Dashboard → **Settings > Webhooks**: set the URL to
-   `https://your-backend-domain.com/api/payment/webhook`, and set a **Secret
-   Hash** (any string you choose) — put that same string in `.env` as
-   `FLW_SECRET_HASH`. Flutterwave sends this back in the `verif-hash` header
-   on every webhook call, and `payment.ts` rejects anything that doesn't
-   match it.
-3. `FLW_REDIRECT_URL` is where Flutterwave sends the user back after paying
-   (e.g. `https://yourapp.com/payment/callback`). Build a small page there
-   that reads the `transaction_id` query param Flutterwave appends and calls
-   `GET /api/payment/verify/:transactionId`.
-4. Flow:
-   - Frontend calls `POST /api/payment/initialize` with `{ plan, email }`
-   - Backend calls Flutterwave's `/v3/payments` endpoint, gets back a hosted
-     checkout `link`
-   - Frontend redirects the browser to that link
-   - User pays on Flutterwave's page → gets redirected to `FLW_REDIRECT_URL`
-   - **Two confirmations happen, on purpose:**
-     - The redirect-triggered `verify` call is instant UX feedback
-     - The `webhook` call is the actual source of truth (a user could close
-       the tab before the redirect fires, but the webhook always arrives)
-   - Both currently have a `// TODO: mark pending.userId as isPaid = true`
-     comment — wire that to your real user database when you add one.
-5. Switch `FLW_PUBLIC_KEY`/`FLW_SECRET_KEY` to your live keys when ready to
-   accept real payments, and re-point the webhook URL to production.
-
-## Frontend setup
+Frontend:
 
 ```bash
 cd frontend
 npm install
 cp .env.example .env
-npm run dev    # http://localhost:5173
+npm run dev
 ```
 
-## What's stubbed vs. production-ready
+Default local URLs:
 
-- **Autocomplete scraping, clustering, radial visualization, script-hook
-  generation, Flutterwave checkout/verify/webhook**: functional as written.
-- **User accounts / database**: `dailyUsage` and `pendingTransactions` are
-  in-memory Maps for this scaffold — swap for Postgres/Mongo + a real users
-  table (matches the pattern you're already using in AgentForge/Atlas)
-  before going live, otherwise usage limits and paid status reset on every
-  server restart.
-- **Auth**: `authMiddleware.ts` expects a JWT; wire up your actual
-  signup/login flow to issue one.
+- Frontend: `http://localhost:5173`
+- Backend health: `http://localhost:4000/health`
+- API base: `http://localhost:4000/api`
+- Payment callback: `http://localhost:5173/payment/callback`
+
+## Required Environment
+
+Backend:
+
+- `NODE_ENV`
+- `PORT`
+- `FRONTEND_URL`
+- `DATABASE_URL`
+- `JWT_SECRET`
+- `FLW_PUBLIC_KEY`
+- `FLW_SECRET_KEY`
+- `FLW_SECRET_HASH`
+- `FLW_REDIRECT_URL`
+- `GEMINI_API_KEY`
+
+Frontend:
+
+- `VITE_API_BASE`
+
+Do not commit real `.env` files.
+
+## Flutterwave Flow
+
+1. Frontend calls `POST /api/payment/initialize` with a plan code.
+2. Backend looks up the plan from the database and creates a pending transaction.
+3. Backend calls Flutterwave and returns the hosted checkout URL.
+4. Flutterwave redirects the user to `/payment/callback`.
+5. The callback page calls `GET /api/payment/verify/:transactionId` for fast UX feedback.
+6. Flutterwave also calls `POST /api/payment/webhook`.
+7. Server-side verification checks status, amount, currency, and transaction reference before activating a subscription.
+
+The frontend never decides whether a user is paid.
+
+## Production Notes
+
+The backend Docker image runs:
+
+```bash
+npm run start:migrate
+```
+
+That applies committed Prisma migrations with `prisma migrate deploy`, then starts
+the compiled API. Use `render.yaml` as the baseline Render deployment blueprint.
+
+Before live payments:
+
+- Use Flutterwave live keys.
+- Set `FLW_REDIRECT_URL` to the deployed frontend callback URL.
+- Configure the Flutterwave webhook URL as `https://your-api-domain/api/payment/webhook`.
+- Set the same webhook secret hash in Flutterwave and `FLW_SECRET_HASH`.
+
+## Verification
+
+```bash
+cd backend
+npm run build
+npm test
+
+cd ../frontend
+npm run build
+```
+
+## Current Gaps
+
+- Production email delivery is not wired yet; email verification and password reset expose tokens only in non-production.
+- Webhook retry is admin-triggered, not a background worker queue.
+- Admin tools are intentionally small and should grow with operational needs.
+- Audit findings from npm remain to be triaged.

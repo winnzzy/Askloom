@@ -8,6 +8,7 @@
     "build": "tsc -p .",
     "test": "vitest run",
     "start": "node dist/server.js",
+    "start:migrate": "prisma migrate deploy && node dist/server.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",
@@ -31,6 +32,7 @@
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.12.0",
     "node-cache": "^5.1.2",
+    "prisma": "^5.22.0",
     "zod": "^4.5.4"
   },
   "devDependencies": {
@@ -42,7 +44,6 @@
     "@types/morgan": "^1.9.10",
     "@types/node": "^20.14.9",
     "@types/supertest": "^7.2.1",
-    "prisma": "^5.22.0",
     "supertest": "^7.2.2",
     "ts-node-dev": "^2.0.0",
     "typescript": "^5.5.3",

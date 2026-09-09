@@ -9,6 +9,7 @@ import {
 } from "react";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:4000/api";
+let accessTokenMemory: string | null = null;
 
 export interface AuthUser {
   id: string;
@@ -46,10 +47,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>({ user: null, token: null });
 
   const login = useCallback((token: string, user: AuthUser) => {
+    accessTokenMemory = token;
     setState({ token, user });
   }, []);
 
   const logout = useCallback(() => {
+    accessTokenMemory = null;
     setState({ user: null, token: null });
     void fetch(`${API_BASE}/auth/logout`, {
       method: "POST",
@@ -58,16 +61,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    fetch(`${API_BASE}/auth/refresh`, {
-      method: "POST",
-      credentials: "include",
-    })
-      .then(async (res) => {
-        if (!res.ok) return;
-        const data = (await res.json()) as AuthState;
-        if (data.token && data.user) {
-          setState({ token: data.token, user: data.user });
-        }
+    refreshSession()
+      .then((data) => {
+        if (data?.token && data.user) setState(data);
       })
       .catch(() => undefined);
   }, []);
@@ -93,10 +89,26 @@ export function useAuth() {
 }
 
 export function getAuthHeader(token?: string | null): Record<string, string> {
-  const explicitToken = token ?? null;
+  const explicitToken = token ?? accessTokenMemory;
   if (explicitToken) {
     return { Authorization: `Bearer ${explicitToken}` };
   }
 
   return {};
+}
+
+export async function refreshSession(): Promise<AuthState | null> {
+  const res = await fetch(`${API_BASE}/auth/refresh`, {
+    method: "POST",
+    credentials: "include",
+  });
+
+  if (!res.ok) {
+    accessTokenMemory = null;
+    return null;
+  }
+
+  const data = (await res.json()) as AuthState;
+  accessTokenMemory = data.token;
+  return data;
 }

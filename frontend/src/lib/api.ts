@@ -1,4 +1,4 @@
-import { getAuthHeader, type AuthPlan, type AuthUser } from "./auth";
+import { getAuthHeader, refreshSession, type AuthPlan, type AuthUser } from "./auth";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:4000/api";
 
@@ -25,6 +25,20 @@ interface AuthResponse {
 interface AccountResponse {
   user: AuthUser;
   plan: AuthPlan | null;
+}
+
+async function apiFetch(input: RequestInfo | URL, init: RequestInit = {}) {
+  const response = await fetch(input, { credentials: "include", ...init });
+  if (response.status !== 401) return response;
+
+  const session = await refreshSession();
+  if (!session?.token) return response;
+
+  return fetch(input, {
+    credentials: "include",
+    ...init,
+    headers: { ...(init.headers as Record<string, string>), ...getAuthHeader(session.token) },
+  });
 }
 
 export async function signup(
@@ -66,7 +80,7 @@ export async function login(
 export async function fetchCurrentAccount(
   token?: string | null
 ): Promise<AccountResponse> {
-  const res = await fetch(`${API_BASE}/auth/me`, {
+  const res = await apiFetch(`${API_BASE}/auth/me`, {
     headers: { ...getAuthHeader(token) },
     credentials: "include",
   });
@@ -97,7 +111,7 @@ export async function fetchSuggestions(seed: string, token?: string | null): Pro
   grouped: GroupedResults;
   total: number;
 }> {
-  const res = await fetch(`${API_BASE}/suggest`, {
+  const res = await apiFetch(`${API_BASE}/suggest`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...getAuthHeader(token) },
     body: JSON.stringify({ seed }),
@@ -113,7 +127,7 @@ export async function fetchScriptHooks(
   phrase: string,
   token?: string | null
 ): Promise<string> {
-  const res = await fetch(`${API_BASE}/script-hook`, {
+  const res = await apiFetch(`${API_BASE}/script-hook`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...getAuthHeader(token) },
     body: JSON.stringify({ phrase }),
@@ -130,7 +144,7 @@ export async function startCheckout(
   plan: string,
   token?: string | null
 ): Promise<string> {
-  const res = await fetch(`${API_BASE}/payment/initialize`, {
+  const res = await apiFetch(`${API_BASE}/payment/initialize`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...getAuthHeader(token) },
     credentials: "include",
@@ -161,7 +175,7 @@ export async function updateProfile(
   token: string | null,
   profile: { firstName?: string | null; lastName?: string | null }
 ): Promise<{ user: AuthUser }> {
-  const res = await fetch(`${API_BASE}/auth/me`, {
+  const res = await apiFetch(`${API_BASE}/auth/me`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json", ...getAuthHeader(token) },
     credentials: "include",
@@ -178,7 +192,7 @@ export async function requestEmailVerification(token: string | null): Promise<{
   ok: true;
   verificationToken?: string;
 }> {
-  const res = await fetch(`${API_BASE}/auth/email/verification`, {
+  const res = await apiFetch(`${API_BASE}/auth/email/verification`, {
     method: "POST",
     headers: { ...getAuthHeader(token) },
     credentials: "include",
@@ -236,7 +250,7 @@ export async function resetPassword(tokenValue: string, password: string): Promi
 }
 
 export async function fetchBilling(token: string | null) {
-  const res = await fetch(`${API_BASE}/account/billing`, {
+  const res = await apiFetch(`${API_BASE}/account/billing`, {
     headers: { ...getAuthHeader(token) },
     credentials: "include",
   });
@@ -248,7 +262,7 @@ export async function fetchBilling(token: string | null) {
 }
 
 export async function cancelSubscription(token: string | null) {
-  const res = await fetch(`${API_BASE}/account/subscription/cancel`, {
+  const res = await apiFetch(`${API_BASE}/account/subscription/cancel`, {
     method: "POST",
     headers: { ...getAuthHeader(token) },
     credentials: "include",
@@ -261,7 +275,7 @@ export async function cancelSubscription(token: string | null) {
 }
 
 export async function downgradeSubscription(token: string | null) {
-  const res = await fetch(`${API_BASE}/account/subscription/downgrade`, {
+  const res = await apiFetch(`${API_BASE}/account/subscription/downgrade`, {
     method: "POST",
     headers: { ...getAuthHeader(token) },
     credentials: "include",
@@ -274,7 +288,7 @@ export async function downgradeSubscription(token: string | null) {
 }
 
 export async function fetchSearchHistory(token: string | null) {
-  const res = await fetch(`${API_BASE}/account/searches`, {
+  const res = await apiFetch(`${API_BASE}/account/searches`, {
     headers: { ...getAuthHeader(token) },
     credentials: "include",
   });
@@ -290,7 +304,7 @@ export function savedSearchCsvUrl(searchId: string): string {
 }
 
 export async function downloadSavedSearchCsv(token: string | null, searchId: string): Promise<Blob> {
-  const res = await fetch(savedSearchCsvUrl(searchId), {
+  const res = await apiFetch(savedSearchCsvUrl(searchId), {
     headers: { ...getAuthHeader(token) },
     credentials: "include",
   });
@@ -302,7 +316,7 @@ export async function downloadSavedSearchCsv(token: string | null, searchId: str
 }
 
 export async function fetchTeam(token: string | null) {
-  const res = await fetch(`${API_BASE}/account/team`, {
+  const res = await apiFetch(`${API_BASE}/account/team`, {
     headers: { ...getAuthHeader(token) },
     credentials: "include",
   });
@@ -314,7 +328,7 @@ export async function fetchTeam(token: string | null) {
 }
 
 export async function createTeam(token: string | null, name: string) {
-  const res = await fetch(`${API_BASE}/account/team`, {
+  const res = await apiFetch(`${API_BASE}/account/team`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...getAuthHeader(token) },
     credentials: "include",
@@ -328,7 +342,7 @@ export async function createTeam(token: string | null, name: string) {
 }
 
 export async function addTeamMember(token: string | null, teamId: string, email: string) {
-  const res = await fetch(`${API_BASE}/account/team/${teamId}/members`, {
+  const res = await apiFetch(`${API_BASE}/account/team/${teamId}/members`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...getAuthHeader(token) },
     credentials: "include",
@@ -342,7 +356,7 @@ export async function addTeamMember(token: string | null, teamId: string, email:
 }
 
 export async function fetchAdminOverview(token: string | null) {
-  const res = await fetch(`${API_BASE}/admin/overview`, {
+  const res = await apiFetch(`${API_BASE}/admin/overview`, {
     headers: { ...getAuthHeader(token) },
     credentials: "include",
   });
@@ -354,7 +368,7 @@ export async function fetchAdminOverview(token: string | null) {
 }
 
 export async function retryWebhooks(token: string | null) {
-  const res = await fetch(`${API_BASE}/admin/webhooks/retry`, {
+  const res = await apiFetch(`${API_BASE}/admin/webhooks/retry`, {
     method: "POST",
     headers: { ...getAuthHeader(token) },
     credentials: "include",

@@ -31,6 +31,7 @@ export async function verifyFlutterwaveTransaction(transactionId: string) {
     `${FLW_BASE_URL}/transactions/${transactionId}/verify`,
     {
       headers: { Authorization: `Bearer ${config.flutterwave.secretKey}` },
+      timeout: 15000,
     }
   );
 

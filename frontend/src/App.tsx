@@ -17,6 +17,7 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState<"cloud" | "list">("cloud");
   const [authOpen, setAuthOpen] = useState(false);
+  const starterTopics = ["faceless youtube", "ai content ideas", "meal prep", "personal finance"];
 
   useEffect(() => {
     if (!token) return;
@@ -35,6 +36,7 @@ export default function App() {
       const data = await fetchSuggestions(seed.trim(), token);
       setGrouped(data.grouped);
       setSubmittedSeed(seed.trim());
+      setView("cloud");
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -75,12 +77,13 @@ export default function App() {
 
       <section className="hero">
         <div className="hero-copy">
+          <div className="eyebrow">Audience research, untangled</div>
           <h1>See every question your audience is already typing.</h1>
           <p>
-            Enter a topic. AskLoom pulls what people are actually asking on Google
-            and YouTube, sorts it into questions, comparisons and angles — then
-            turns any line into a ready-to-use video hook.
+            Enter a topic. AskLoom pulls what people are asking on Google and
+            YouTube, sorts it into angles, then turns any line into a video hook.
           </p>
+
           <form className="search-form" onSubmit={handleSearch}>
             <input
               value={seed}
@@ -88,13 +91,39 @@ export default function App() {
               placeholder="e.g. yoruba mythology"
             />
             <button type="submit" disabled={loading}>
-              {loading ? "Weaving…" : "Search"}
+              {loading ? "Searching..." : "Search"}
             </button>
           </form>
-          {error && <p style={{ color: "#e4a3a3", marginTop: "0.75rem" }}>{error}</p>}
+
+          <div className="topic-chips" aria-label="Starter topics">
+            {starterTopics.map((topic) => (
+              <button key={topic} type="button" onClick={() => setSeed(topic)}>
+                {topic}
+              </button>
+            ))}
+          </div>
+
+          <div className="hero-stats" aria-label="Product highlights">
+            <span>Google + YouTube</span>
+            <span>Question clusters</span>
+            <span>Script hooks</span>
+          </div>
+          {error && <p className="hero-error">{error}</p>}
         </div>
+
         <div className="hero-visual">
-          {grouped && <SearchCloud seed={submittedSeed} grouped={grouped} />}
+          {grouped ? (
+            <SearchCloud seed={submittedSeed} grouped={grouped} />
+          ) : (
+            <div className="loom-preview" aria-hidden="true">
+              <div className="preview-core">AskLoom</div>
+              {["who", "how", "vs", "for", "best", "near"].map((label, index) => (
+                <span className={`preview-node node-${index + 1}`} key={label}>
+                  {label}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       </section>
 
@@ -117,7 +146,13 @@ export default function App() {
               </button>
             </div>
           </div>
-          {view === "list" && <ResultsList grouped={grouped} token={token} />}
+          {view === "cloud" ? (
+            <div className="cloud-result-panel">
+              <SearchCloud seed={submittedSeed} grouped={grouped} />
+            </div>
+          ) : (
+            <ResultsList grouped={grouped} token={token} />
+          )}
         </section>
       )}
 

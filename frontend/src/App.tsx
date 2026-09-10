@@ -76,7 +76,7 @@ const markets: Array<{ code: ResearchMarket; label: string }> = [
 
 export default function App() {
   const { user, token, login, logout } = useAuth();
-  const [seed, setSeed] = useState("");
+  const [seed, setSeed] = useState(() => new URLSearchParams(window.location.search).get("topic") ?? "");
   const [submittedSeed, setSubmittedSeed] = useState("");
   const [grouped, setGrouped] = useState<GroupedResults | null>(null);
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
@@ -163,7 +163,10 @@ export default function App() {
       <header className="site-header intelligence-header">
         <a className="wordmark" href="/">Ask<span>Loom</span></a>
         <nav className="primary-nav" aria-label="Primary navigation">
-          {t.nav.map((item, index) => <a key={item} href={index === 0 ? "#discover" : index === 1 ? "#opportunities" : index === 2 ? "#trends" : "#workflow"}>{item}</a>)}
+          <a href="#discover">{t.nav[0]}</a>
+          <a href="#opportunities">{t.nav[1]}</a>
+          <Link to="/trends">{t.nav[2]}</Link>
+          <a href="#workflow">{t.nav[3]}</a>
         </nav>
         <div className="account-area">
           <label className="language-picker" aria-label="Interface language">
@@ -227,7 +230,7 @@ export default function App() {
         </section>
 
         <section className="trend-section" id="trends">
-          <div><div className="eyebrow">THE DATA MOAT STARTS WITH USEFUL RESEARCH</div><h2>See what is gaining momentum.</h2><p>AskLoom is being designed to learn from privacy-conscious, aggregated product signals over time—building trend intelligence without turning individual user histories into a product.</p></div>
+          <div><div className="eyebrow">THE DATA MOAT STARTS WITH USEFUL RESEARCH</div><h2>See what is gaining momentum.</h2><p>AskLoom is being designed to learn from privacy-conscious, aggregated product signals over time—building trend intelligence without turning individual user histories into a product.</p><Link className="secondary-action trend-live-link" to="/trends">Open live Trend Index</Link></div>
           <div className="trend-card"><div className="trend-card-head"><span>AskLoom Trend Index · Concept</span><b>90 days</b></div><strong className="trend-name">AI voice agents</strong><div className="trend-number">+141%</div><div className="trend-bars" aria-hidden="true">{[22,28,31,38,42,49,58,66,73,82,91,100].map((height, index) => <i key={index} style={{ height: `${height}%` }} />)}</div><small>Example visualization · historical trend product in development</small></div>
         </section>
 

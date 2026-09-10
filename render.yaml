@@ -3,7 +3,7 @@ services:
     name: askloom-backend
     env: docker
     rootDir: backend
-    plan: starter
+    plan: free
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV
@@ -61,4 +61,4 @@ services:
 
 databases:
   - name: askloom-postgres
-    plan: starter
+    plan: free

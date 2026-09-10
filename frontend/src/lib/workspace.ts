@@ -47,6 +47,37 @@ export async function fetchSavedOpportunities(token: string) {
   return res.json();
 }
 
+export async function deleteSavedOpportunity(token: string, opportunityId: string) {
+  const res = await fetch(`${API_BASE}/account/opportunities/${opportunityId}`, {
+    method: "DELETE",
+    credentials: "include",
+    headers: { ...getAuthHeader(token) },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || "Could not delete saved opportunity");
+  }
+  return res.json();
+}
+
+export async function assignOpportunityToProject(
+  token: string,
+  opportunityId: string,
+  projectId: string | null
+) {
+  const res = await fetch(`${API_BASE}/account/opportunities/${opportunityId}/project`, {
+    method: "PATCH",
+    credentials: "include",
+    headers: { "Content-Type": "application/json", ...getAuthHeader(token) },
+    body: JSON.stringify({ projectId }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || "Could not move opportunity");
+  }
+  return res.json();
+}
+
 export async function fetchProjects(token: string) {
   const res = await fetch(`${API_BASE}/account/projects`, {
     credentials: "include",
@@ -71,6 +102,19 @@ export async function createProject(
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.error || "Could not create project");
+  }
+  return res.json();
+}
+
+export async function deleteProject(token: string, projectId: string) {
+  const res = await fetch(`${API_BASE}/account/projects/${projectId}`, {
+    method: "DELETE",
+    credentials: "include",
+    headers: { ...getAuthHeader(token) },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || "Could not delete project");
   }
   return res.json();
 }

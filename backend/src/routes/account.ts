@@ -178,6 +178,18 @@ router.get("/account/searches/:id/export.csv", asyncHandler(async (req: Request,
   return res.send(lines.join("\n"));
 }));
 
+router.delete("/account/searches/:id", asyncHandler(async (req: Request, res: Response) => {
+  const result = await prisma.searchHistory.deleteMany({
+    where: { id: req.params.id, userId: req.user!.id },
+  });
+
+  if (result.count === 0) {
+    return res.status(404).json({ error: "Search not found" });
+  }
+
+  res.json({ ok: true });
+}));
+
 router.get("/account/team", asyncHandler(async (req: Request, res: Response) => {
   const teams = await prisma.team.findMany({
     where: {
@@ -252,6 +264,24 @@ router.post("/account/team/:teamId/members", asyncHandler(async (req: Request, r
   });
 
   res.status(201).json({ member });
+}));
+
+router.delete("/account/team/:teamId/members/:memberId", asyncHandler(async (req: Request, res: Response) => {
+  const team = await prisma.team.findFirst({
+    where: { id: req.params.teamId, ownerId: req.user!.id },
+  });
+  if (!team) return res.status(404).json({ error: "Team not found" });
+
+  const member = await prisma.teamMember.findFirst({
+    where: { id: req.params.memberId, teamId: team.id },
+  });
+  if (!member) return res.status(404).json({ error: "Team member not found" });
+  if (member.role === TeamRole.OWNER) {
+    return res.status(400).json({ error: "Team owner cannot be removed" });
+  }
+
+  await prisma.teamMember.delete({ where: { id: member.id } });
+  res.json({ ok: true });
 }));
 
 export default router;

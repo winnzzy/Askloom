@@ -844,6 +844,133 @@ body {
   font-weight: 500;
 }
 
+/* ---------- Account ---------- */
+.account-page {
+  background:
+    linear-gradient(180deg, rgba(134, 168, 255, 0.08), rgba(217, 183, 93, 0.06)),
+    var(--parchment);
+}
+
+.account-hero-panel {
+  align-items: center;
+  background:
+    linear-gradient(135deg, rgba(217, 183, 93, 0.12), rgba(134, 168, 255, 0.1)),
+    var(--loom-indigo-deep);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  color: var(--parchment);
+  display: flex;
+  gap: 1.5rem;
+  justify-content: space-between;
+  margin-bottom: 1.25rem;
+  padding: 1.5rem;
+}
+
+.account-hero-panel h1 {
+  font-family: var(--font-display);
+  font-size: clamp(2rem, 4vw, 3.4rem);
+  font-weight: 500;
+  line-height: 1;
+  margin: 0 0 0.5rem;
+}
+
+.account-hero-panel p {
+  color: #c7c0d8;
+  font-family: var(--font-data);
+  margin: 0;
+}
+
+.account-plan-summary {
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 10px;
+  min-width: min(100%, 260px);
+  padding: 1rem;
+}
+
+.account-plan-summary span,
+.account-plan-summary small {
+  color: #c7c0d8;
+  display: block;
+  font-family: var(--font-data);
+  font-size: 0.74rem;
+}
+
+.account-plan-summary strong {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 1.7rem;
+  font-weight: 500;
+  margin: 0.2rem 0;
+}
+
+.account-grid {
+  display: grid;
+  gap: 1.25rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.account-panel {
+  min-height: 260px;
+}
+
+.account-panel-heading {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.account-panel-heading span {
+  color: var(--muted);
+  font-family: var(--font-data);
+  font-size: 0.75rem;
+}
+
+.billing-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.85rem;
+}
+
+.account-list {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.account-list-row {
+  align-items: center;
+  background: rgba(255, 250, 240, 0.75);
+  border: 1px solid var(--soft-line);
+  border-radius: 8px;
+  display: grid;
+  gap: 0.65rem;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  padding: 0.75rem;
+}
+
+.account-list-row strong {
+  display: block;
+  font-size: 0.92rem;
+  overflow-wrap: anywhere;
+}
+
+.account-list-row span {
+  color: var(--muted);
+  display: block;
+  font-family: var(--font-data);
+  font-size: 0.72rem;
+}
+
+.polished-team {
+  background: rgba(255, 250, 240, 0.68);
+  border: 1px solid var(--soft-line);
+  border-radius: 8px;
+  padding: 0.85rem;
+}
+
 /* ---------- Admin ---------- */
 .admin-page {
   min-height: 100vh;
@@ -1121,11 +1248,13 @@ body {
   }
 
   .admin-metrics-grid,
-  .admin-grid {
+  .admin-grid,
+  .account-grid {
     grid-template-columns: 1fr;
   }
 
-  .admin-hero-panel {
+  .admin-hero-panel,
+  .account-hero-panel {
     align-items: flex-start;
     flex-direction: column;
   }
@@ -1191,6 +1320,11 @@ body {
   }
 
   .admin-row {
+    align-items: start;
+    grid-template-columns: 1fr;
+  }
+
+  .account-list-row {
     align-items: start;
     grid-template-columns: 1fr;
   }

@@ -1,15 +1,17 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import {
   addTeamMember,
   cancelSubscription,
   createTeam,
+  deleteSavedSearch,
   downloadSavedSearchCsv,
   downgradeSubscription,
   fetchBilling,
   fetchCurrentAccount,
   fetchSearchHistory,
   fetchTeam,
+  removeTeamMember,
   requestEmailVerification,
   requestPasswordReset,
   resetPassword,
@@ -17,6 +19,11 @@ import {
   verifyEmail,
 } from "../lib/api";
 import { useAuth } from "../lib/auth";
+
+function formatDate(value?: string | null) {
+  if (!value) return "Not set";
+  return new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(value));
+}
 
 export default function AccountSettings() {
   const { user, token, login } = useAuth();
@@ -28,9 +35,17 @@ export default function AccountSettings() {
   const [searches, setSearches] = useState<any[]>([]);
   const [teams, setTeams] = useState<any[]>([]);
   const [teamName, setTeamName] = useState("");
-  const [memberEmail, setMemberEmail] = useState("");
+  const [memberEmailByTeam, setMemberEmailByTeam] = useState<Record<string, string>>({});
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  const currentPlan = billing?.currentPlan;
+  const latestSubscription = billing?.subscriptions?.[0];
+  const totalTeamSeats = currentPlan?.teamSeatLimit ?? 0;
+  const usedTeamSeats = useMemo(
+    () => teams.reduce((sum, team) => sum + (team.memberships?.length ?? 0), 0),
+    [teams]
+  );
 
   useEffect(() => {
     if (!user || !token) {
@@ -80,6 +95,12 @@ export default function AccountSettings() {
     setBilling(await fetchBilling(token));
   }
 
+  async function reloadTeam() {
+    if (!token) return;
+    const data = await fetchTeam(token);
+    setTeams(data.teams ?? []);
+  }
+
   async function saveProfile(e: React.FormEvent) {
     e.preventDefault();
     if (!token) return;
@@ -103,7 +124,7 @@ export default function AccountSettings() {
     try {
       await (downgrade ? downgradeSubscription(token) : cancelSubscription(token));
       await refreshAccount();
-      setNotice(downgrade ? "Plan changed to Free." : "Subscription cancelled.");
+      setNotice(downgrade ? "Plan changed to Free." : "Subscription updated.");
     } catch (error: any) {
       setNotice(error.message);
     } finally {
@@ -122,45 +143,70 @@ export default function AccountSettings() {
     URL.revokeObjectURL(url);
   }
 
+  async function removeSearch(searchId: string) {
+    if (!token) return;
+    await deleteSavedSearch(token, searchId);
+    setSearches((prev) => prev.filter((search) => search.id !== searchId));
+  }
+
   async function createTeamSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!token || !teamName.trim()) return;
-    await createTeam(token, teamName.trim());
-    const data = await fetchTeam(token);
-    setTeams(data.teams ?? []);
-    setTeamName("");
+    try {
+      await createTeam(token, teamName.trim());
+      await reloadTeam();
+      setTeamName("");
+      setNotice("Team created.");
+    } catch (error: any) {
+      setNotice(error.message);
+    }
   }
 
   async function addMember(teamId: string) {
-    if (!token || !memberEmail.trim()) return;
-    await addTeamMember(token, teamId, memberEmail.trim());
-    const data = await fetchTeam(token);
-    setTeams(data.teams ?? []);
-    setMemberEmail("");
+    if (!token) return;
+    const email = memberEmailByTeam[teamId]?.trim();
+    if (!email) return;
+    try {
+      await addTeamMember(token, teamId, email);
+      await reloadTeam();
+      setMemberEmailByTeam((prev) => ({ ...prev, [teamId]: "" }));
+      setNotice("Team member added.");
+    } catch (error: any) {
+      setNotice(error.message);
+    }
+  }
+
+  async function handleRemoveMember(teamId: string, memberId: string) {
+    if (!token) return;
+    try {
+      await removeTeamMember(token, teamId, memberId);
+      await reloadTeam();
+      setNotice("Team member removed.");
+    } catch (error: any) {
+      setNotice(error.message);
+    }
   }
 
   async function createVerificationToken() {
     if (!token) return;
     const result = await requestEmailVerification(token);
-    setNotice(result.verificationToken ? `Dev verification token: ${result.verificationToken}` : "Verification email queued.");
-  }
-
-  async function verifyToken() {
-    const tokenValue = window.prompt("Paste verification token");
-    if (!tokenValue) return;
-    await verifyEmail(tokenValue);
-    await refreshAccount();
-    setNotice("Email verified.");
+    setNotice(
+      result.verificationToken
+        ? `Dev verification token: ${result.verificationToken}`
+        : "Verification email queued."
+    );
   }
 
   async function sendResetToken() {
     if (!user?.email) return;
     const result = await requestPasswordReset(user.email);
-    setNotice(result.resetToken ? `Dev reset token: ${result.resetToken}` : "Password reset email queued.");
+    setNotice(
+      result.resetToken ? `Dev reset token: ${result.resetToken}` : "Password reset email queued."
+    );
   }
 
   return (
-    <main className="settings-page">
+    <main className="settings-page account-page">
       <header className="settings-header">
         <Link className="wordmark" to="/">
           Ask<span>Loom</span>
@@ -170,72 +216,131 @@ export default function AccountSettings() {
         </Link>
       </header>
 
-      <section className="settings-grid">
-        <div className="settings-panel">
-          <h1>Account</h1>
+      <section className="account-hero-panel">
+        <div>
+          <div className="eyebrow">Workspace</div>
+          <h1>{currentPlan?.name ?? "Free"} account</h1>
           <p>{user?.email}</p>
-          <p>Plan: {billing?.currentPlan?.name ?? "Free"}</p>
-          <p>Email: {user?.emailVerified ? "Verified" : "Not verified"}</p>
-          {notice && <p className="notice">{notice}</p>}
+        </div>
+        <div className="account-plan-summary">
+          <span>{user?.emailVerified ? "Verified email" : "Email not verified"}</span>
+          <strong>{currentPlan?.name ?? "Free"}</strong>
+          <small>
+            {latestSubscription?.currentPeriodEnd
+              ? `Renews/ends ${formatDate(latestSubscription.currentPeriodEnd)}`
+              : "No active billing period"}
+          </small>
+        </div>
+      </section>
+
+      {notice && <p className="admin-notice">{notice}</p>}
+
+      <section className="account-grid">
+        <div className="settings-panel account-panel">
+          <h2>Profile</h2>
           <form className="settings-form" onSubmit={saveProfile}>
             <input value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="First name" />
             <input value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Last name" />
             <button disabled={busy}>Save profile</button>
           </form>
           <div className="button-row">
-            <button className="secondary-action" onClick={createVerificationToken}>Verify email</button>
-            <button className="secondary-action" onClick={verifyToken}>Submit token</button>
-            <button className="secondary-action" onClick={sendResetToken}>Password reset</button>
+            {!user?.emailVerified && (
+              <button className="secondary-action" type="button" onClick={createVerificationToken}>
+                Send verification
+              </button>
+            )}
+            <button className="secondary-action" type="button" onClick={sendResetToken}>
+              Password reset
+            </button>
           </div>
         </div>
 
-        <div className="settings-panel">
+        <div className="settings-panel account-panel">
           <h2>Billing</h2>
-          <div className="button-row">
-            <button className="secondary-action" disabled={busy} onClick={() => handleCancel(false)}>Cancel</button>
-            <button className="secondary-action" disabled={busy} onClick={() => handleCancel(true)}>Downgrade</button>
+          <div className="billing-actions">
+            <button className="secondary-action" disabled={busy || !currentPlan} onClick={() => handleCancel(false)}>
+              Cancel renewal
+            </button>
+            <button className="secondary-action" disabled={busy || !currentPlan} onClick={() => handleCancel(true)}>
+              Downgrade now
+            </button>
           </div>
-          {(billing?.transactions ?? []).map((transaction: any) => (
-            <div className="table-row" key={transaction.id}>
-              <span>{transaction.plan?.name ?? "Plan"}</span>
-              <span>{transaction.currency} {transaction.amount}</span>
-              <span>{transaction.status}</span>
-            </div>
-          ))}
+          <div className="account-list">
+            {(billing?.transactions ?? []).slice(0, 6).map((transaction: any) => (
+              <div className="account-list-row" key={transaction.id}>
+                <div>
+                  <strong>{transaction.plan?.name ?? "Plan"}</strong>
+                  <span>{formatDate(transaction.createdAt)}</span>
+                </div>
+                <span>{transaction.currency} {transaction.amount}</span>
+                <span className={`status-badge ${transaction.status === "SUCCESSFUL" ? "success" : "pending"}`}>
+                  {transaction.status}
+                </span>
+              </div>
+            ))}
+            {(billing?.transactions ?? []).length === 0 && <p className="empty-state">No payments yet.</p>}
+          </div>
         </div>
 
-        <div className="settings-panel">
-          <h2>Saved Searches</h2>
-          {searches.map((search) => (
-            <div className="table-row" key={search.id}>
-              <span>{search.seed}</span>
-              <span>{search.total} ideas</span>
-              <button className="secondary-action" onClick={() => exportSearch(search.id)}>CSV</button>
-            </div>
-          ))}
+        <div className="settings-panel account-panel">
+          <h2>Saved searches</h2>
+          <div className="account-list">
+            {searches.map((search) => (
+              <div className="account-list-row" key={search.id}>
+                <div>
+                  <strong>{search.seed}</strong>
+                  <span>{search.total} ideas · {formatDate(search.createdAt)}</span>
+                </div>
+                <button className="secondary-action" onClick={() => exportSearch(search.id)}>CSV</button>
+                <button className="secondary-action" onClick={() => removeSearch(search.id)}>Delete</button>
+              </div>
+            ))}
+            {searches.length === 0 && <p className="empty-state">Search while logged in to build your topic library.</p>}
+          </div>
         </div>
 
-        <div className="settings-panel">
-          <h2>Team</h2>
-          <form className="settings-form" onSubmit={createTeamSubmit}>
+        <div className="settings-panel account-panel">
+          <div className="account-panel-heading">
+            <h2>Team</h2>
+            {totalTeamSeats > 0 && <span>{usedTeamSeats}/{totalTeamSeats} seats used</span>}
+          </div>
+          <form className="settings-form inline" onSubmit={createTeamSubmit}>
             <input value={teamName} onChange={(e) => setTeamName(e.target.value)} placeholder="Team name" />
-            <button>Create team</button>
+            <button>Create</button>
           </form>
           {teams.map((team) => (
-            <div key={team.id} className="team-block">
+            <div key={team.id} className="team-block polished-team">
               <strong>{team.name}</strong>
               <div className="settings-form inline">
-                <input value={memberEmail} onChange={(e) => setMemberEmail(e.target.value)} placeholder="member@example.com" />
-                <button onClick={() => addMember(team.id)}>Add</button>
+                <input
+                  value={memberEmailByTeam[team.id] ?? ""}
+                  onChange={(e) =>
+                    setMemberEmailByTeam((prev) => ({ ...prev, [team.id]: e.target.value }))
+                  }
+                  placeholder="member@example.com"
+                />
+                <button type="button" onClick={() => addMember(team.id)}>Add</button>
               </div>
               {(team.memberships ?? []).map((member: any) => (
-                <div className="table-row" key={member.id}>
-                  <span>{member.user?.email}</span>
-                  <span>{member.role}</span>
+                <div className="account-list-row" key={member.id}>
+                  <div>
+                    <strong>{member.user?.email}</strong>
+                    <span>{member.role}</span>
+                  </div>
+                  {member.role !== "OWNER" && (
+                    <button
+                      className="secondary-action"
+                      type="button"
+                      onClick={() => handleRemoveMember(team.id, member.id)}
+                    >
+                      Remove
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
           ))}
+          {teams.length === 0 && <p className="empty-state">Agency users can create a team workspace here.</p>}
         </div>
       </section>
     </main>

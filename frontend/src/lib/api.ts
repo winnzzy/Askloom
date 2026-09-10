@@ -335,6 +335,19 @@ export async function fetchSearchHistory(token: string | null) {
   return res.json();
 }
 
+export async function deleteSavedSearch(token: string | null, searchId: string): Promise<{ ok: true }> {
+  const res = await apiFetch(`${API_BASE}/account/searches/${searchId}`, {
+    method: "DELETE",
+    headers: { ...getAuthHeader(token) },
+    credentials: "include",
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || "Could not delete saved search");
+  }
+  return res.json();
+}
+
 export function savedSearchCsvUrl(searchId: string): string {
   return `${API_BASE}/account/searches/${searchId}/export.csv`;
 }
@@ -387,6 +400,19 @@ export async function addTeamMember(token: string | null, teamId: string, email:
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.error || "Could not add team member");
+  }
+  return res.json();
+}
+
+export async function removeTeamMember(token: string | null, teamId: string, memberId: string) {
+  const res = await apiFetch(`${API_BASE}/account/team/${teamId}/members/${memberId}`, {
+    method: "DELETE",
+    headers: { ...getAuthHeader(token) },
+    credentials: "include",
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || "Could not remove team member");
   }
   return res.json();
 }

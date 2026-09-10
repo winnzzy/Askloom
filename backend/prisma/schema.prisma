@@ -7,13 +7,48 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum BillingInterval { DAY WEEK MONTH YEAR LIFETIME }
-enum SubscriptionStatus { PENDING ACTIVE PAST_DUE CANCELLED EXPIRED }
-enum PaymentProvider { FLUTTERWAVE MANUAL }
-enum PaymentTransactionStatus { PENDING SUCCESSFUL FAILED CANCELLED }
-enum UsageSubjectType { USER ANONYMOUS }
-enum UserRole { USER ADMIN }
-enum TeamRole { OWNER MEMBER }
+enum BillingInterval {
+  DAY
+  WEEK
+  MONTH
+  YEAR
+  LIFETIME
+}
+
+enum SubscriptionStatus {
+  PENDING
+  ACTIVE
+  PAST_DUE
+  CANCELLED
+  EXPIRED
+}
+
+enum PaymentProvider {
+  FLUTTERWAVE
+  MANUAL
+}
+
+enum PaymentTransactionStatus {
+  PENDING
+  SUCCESSFUL
+  FAILED
+  CANCELLED
+}
+
+enum UsageSubjectType {
+  USER
+  ANONYMOUS
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum TeamRole {
+  OWNER
+  MEMBER
+}
 
 model User {
   id                      String                   @id @default(uuid()) @db.Uuid

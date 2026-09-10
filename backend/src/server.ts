@@ -6,8 +6,27 @@ import {
 } from "./services/payments";
 import { startWebhookRetryWorker } from "./workers/webhookRetryWorker";
 
+function configured(value: unknown): "yes" | "no" {
+  return value ? "yes" : "no";
+}
+
 app.listen(config.port, () => {
   console.log(`AskLoom backend running on port ${config.port}`);
+  console.log(
+    [
+      `Startup readiness: env=${config.nodeEnv}`,
+      `database=${configured(config.databaseUrl)}`,
+      `flutterwave=${configured(
+        config.flutterwave.clientId &&
+          config.flutterwave.clientSecret &&
+          config.flutterwave.secretHash
+      )}`,
+      `gemini=${configured(config.geminiApiKey)}`,
+      `smtp=${configured(config.email.smtpHost && config.email.from)}`,
+      `webhookWorker=${config.webhookWorker.enabled ? "on" : "off"}`,
+    ].join(" ")
+  );
+
   startWebhookRetryWorker();
 
   if (hasFlutterwaveConfig()) {

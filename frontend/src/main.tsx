@@ -8,6 +8,7 @@ import AccountSettings from "./pages/AccountSettings";
 import AdminDashboard from "./pages/AdminDashboard";
 import ResetPassword from "./pages/ResetPassword";
 import VerifyEmail from "./pages/VerifyEmail";
+import Trends from "./pages/Trends";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
@@ -15,6 +16,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<App />} />
+          <Route path="/trends" element={<Trends />} />
           <Route path="/account" element={<AccountSettings />} />
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/payment/callback" element={<PaymentCallback />} />

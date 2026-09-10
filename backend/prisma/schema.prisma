@@ -65,6 +65,8 @@ model User {
   passwordResetTokens     PasswordResetToken[]
   emailVerificationTokens EmailVerificationToken[]
   searches                SearchHistory[]
+  projects                Project[]
+  savedOpportunities      SavedOpportunity[]
   ownedTeams              Team[]                   @relation("TeamOwner")
   teamMemberships         TeamMember[]
   createdAt               DateTime                 @default(now())
@@ -113,7 +115,7 @@ model Subscription {
 model PaymentTransaction {
   id                    String                   @id @default(uuid()) @db.Uuid
   userId                String                   @db.Uuid
-  planId                 String                   @db.Uuid
+  planId                String                   @db.Uuid
   txRef                 String                   @unique
   providerTransactionId String?                  @unique
   amount                Decimal                  @db.Decimal(10, 2)
@@ -220,6 +222,42 @@ model SearchHistory {
   @@index([userId, createdAt])
 }
 
+model Project {
+  id            String             @id @default(uuid()) @db.Uuid
+  userId        String             @db.Uuid
+  name          String
+  language      String             @default("en")
+  market        String             @default("NG")
+  user          User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  opportunities SavedOpportunity[]
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  @@index([userId, updatedAt])
+}
+
+model SavedOpportunity {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  projectId String?  @db.Uuid
+  seed      String
+  phrase    String
+  score     Int
+  intent    String
+  category  String
+  language  String
+  market    String
+  reasons   Json?
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, createdAt])
+  @@index([projectId, createdAt])
+  @@index([market, language, createdAt])
+}
+
 // Privacy-first aggregate used for trend intelligence. It intentionally has no
 // user, IP, cookie, session, or device identifier.
 model SearchSignalDaily {
@@ -243,15 +281,15 @@ model SearchSignalDaily {
 // event rows. This is sufficient for funnels and product trends without a
 // behavioral profile tied to a person.
 model ProductMetricDaily {
-  id        String   @id @default(uuid()) @db.Uuid
+  id         String   @id @default(uuid()) @db.Uuid
   metricDate DateTime @db.Date
-  eventName String
-  language  String
-  market    String
-  platform  String
-  count     Int      @default(0)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  eventName  String
+  language   String
+  market     String
+  platform   String
+  count      Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   @@unique([metricDate, eventName, language, market, platform])
   @@index([eventName, metricDate])

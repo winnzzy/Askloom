@@ -3,14 +3,16 @@ import NodeCache from "node-cache";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { gatherSuggestions } from "../utils/autocomplete";
-import { clusterResults, groupByCategory } from "../utils/cluster";
+import { clusterResults, groupByCategory, type ClusteredResult } from "../utils/cluster";
 import { getActivePlanForUser } from "../services/subscription";
 import { checkAndIncrementUsage } from "../services/usage";
 import {
+  getTopicMomentum,
   recordSearchSignal,
   SUPPORTED_LANGUAGES,
   SUPPORTED_MARKETS,
 } from "../services/intelligence";
+import { scoreOpportunities } from "../services/opportunity";
 import prisma from "../lib/prisma";
 import { asyncHandler } from "../utils/asyncHandler";
 
@@ -41,6 +43,22 @@ async function persistSearchHistory(userId: string | undefined, seed: string, so
   });
 }
 
+function flattenGrouped(grouped: unknown): ClusteredResult[] {
+  if (!grouped || typeof grouped !== "object") return [];
+  const out: ClusteredResult[] = [];
+  for (const [category, rawSubgroups] of Object.entries(grouped as Record<string, unknown>)) {
+    if (!rawSubgroups || typeof rawSubgroups !== "object") continue;
+    for (const [subgroup, rawPhrases] of Object.entries(rawSubgroups as Record<string, unknown>)) {
+      if (!Array.isArray(rawPhrases)) continue;
+      for (const phrase of rawPhrases) {
+        if (typeof phrase !== "string") continue;
+        out.push({ category: category as ClusteredResult["category"], subgroup, phrase });
+      }
+    }
+  }
+  return out;
+}
+
 router.post("/suggest", asyncHandler(async (req: Request, res: Response) => {
   const parsed = suggestSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid search request" });
@@ -58,24 +76,44 @@ router.post("/suggest", asyncHandler(async (req: Request, res: Response) => {
     });
   }
 
+  const topicMomentum = await getTopicMomentum({ seed, language, market }).catch(() => 0);
   const cacheKey = `${seed.toLowerCase()}::${sources.join(",")}::${language}::${market}`;
   const cached = cache.get(cacheKey) as { grouped: unknown; total: number } | undefined;
+
   if (cached) {
+    const opportunities = scoreOpportunities(flattenGrouped(cached.grouped), topicMomentum).slice(0, 24);
     await persistSearchHistory(userId, seed, sources, cached.grouped, cached.total);
     await recordSearchSignal({ seed, language, market, sources, resultCount: cached.total }).catch(() => undefined);
-    return res.json({ seed, cached: true, language, market, ...cached });
+    return res.json({
+      seed,
+      cached: true,
+      language,
+      market,
+      methodology: "beta-structural-v1",
+      opportunities,
+      ...cached,
+    });
   }
 
   const rawPhrases = await gatherSuggestions(seed, sources, { language, market });
   const clustered = clusterResults(seed, rawPhrases);
   const grouped = groupByCategory(clustered);
   const payload = { grouped, total: clustered.length };
+  const opportunities = scoreOpportunities(clustered, topicMomentum).slice(0, 24);
   cache.set(cacheKey, payload);
 
   await persistSearchHistory(userId, seed, sources, grouped, clustered.length);
   await recordSearchSignal({ seed, language, market, sources, resultCount: clustered.length }).catch(() => undefined);
 
-  return res.json({ seed, cached: false, language, market, ...payload });
+  return res.json({
+    seed,
+    cached: false,
+    language,
+    market,
+    methodology: "beta-structural-v1",
+    opportunities,
+    ...payload,
+  });
 }));
 
 export default router;

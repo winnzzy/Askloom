@@ -20,8 +20,45 @@ function utcDateOnly(now = new Date()): Date {
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
 }
 
+function daysAgo(days: number): Date {
+  const date = utcDateOnly();
+  date.setUTCDate(date.getUTCDate() - days);
+  return date;
+}
+
 export function normalizeResearchSeed(seed: string): string {
   return seed.trim().toLocaleLowerCase().replace(/\s+/g, " ").slice(0, 120);
+}
+
+export async function getTopicMomentum(input: {
+  seed: string;
+  language: IntelligenceLanguage;
+  market: IntelligenceMarket;
+}): Promise<number> {
+  const normalizedSeed = normalizeResearchSeed(input.seed);
+  const rows = await prisma.searchSignalDaily.findMany({
+    where: {
+      normalizedSeed,
+      language: input.language,
+      market: input.market,
+      signalDate: { gte: daysAgo(14) },
+    },
+    select: { signalDate: true, searchCount: true },
+  });
+
+  const split = daysAgo(7).getTime();
+  let recent = 0;
+  let previous = 0;
+  for (const row of rows) {
+    if (row.signalDate.getTime() >= split) recent += row.searchCount;
+    else previous += row.searchCount;
+  }
+
+  // Avoid overstating momentum on tiny/no historical samples. The returned
+  // number is only a small scoring boost, not a claimed market growth rate.
+  if (previous < 3 || recent < 3) return 0;
+  const growth = (recent - previous) / previous;
+  return Math.max(0, Math.min(10, growth * 10));
 }
 
 export async function recordSearchSignal(input: {

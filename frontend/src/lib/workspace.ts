@@ -3,6 +3,8 @@ import type { Opportunity, ResearchLanguage, ResearchMarket } from "./intelligen
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:4000/api";
 
+export type ContentStatus = "IDEA" | "PLANNED" | "IN_PROGRESS" | "PUBLISHED";
+
 export async function saveOpportunity(input: {
   token: string;
   seed: string;
@@ -74,6 +76,24 @@ export async function assignOpportunityToProject(
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.error || "Could not move opportunity");
+  }
+  return res.json();
+}
+
+export async function updateOpportunityStatus(
+  token: string,
+  opportunityId: string,
+  contentStatus: ContentStatus
+) {
+  const res = await fetch(`${API_BASE}/account/opportunities/${opportunityId}/status`, {
+    method: "PATCH",
+    credentials: "include",
+    headers: { "Content-Type": "application/json", ...getAuthHeader(token) },
+    body: JSON.stringify({ contentStatus }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || "Could not update content status");
   }
   return res.json();
 }

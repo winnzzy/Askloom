@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import "../trends.css";
 import { fetchTrends, type TrendItem } from "../lib/trends";
 import type { ResearchLanguage, ResearchMarket } from "../lib/intelligence";
 

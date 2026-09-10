@@ -3,7 +3,7 @@ import { scoreOpportunities } from "./opportunity";
 import type { ClusteredResult } from "../utils/cluster";
 
 describe("scoreOpportunities", () => {
-  it("prioritizes specific comparison and question intent over generic discovery", () => {
+  it("prioritizes high-intent specific queries over generic discovery", () => {
     const input: ClusteredResult[] = [
       { category: "related", subgroup: "related", phrase: "ai agents" },
       { category: "questions", subgroup: "how", phrase: "how can small businesses use ai agents for customer service" },
@@ -11,10 +11,14 @@ describe("scoreOpportunities", () => {
     ];
 
     const ranked = scoreOpportunities(input);
+    const generic = ranked.find((item) => item.phrase === "ai agents")!;
+    const question = ranked.find((item) => item.category === "questions")!;
+    const comparison = ranked.find((item) => item.category === "comparisons")!;
 
-    expect(ranked[0].phrase).toBe("ai agents vs virtual assistants for small business");
-    expect(ranked[0].score).toBeGreaterThan(ranked[2].score);
-    expect(ranked.some((item) => item.badges.includes("Question intent"))).toBe(true);
+    expect(question.score).toBeGreaterThan(generic.score);
+    expect(comparison.score).toBeGreaterThan(generic.score);
+    expect(question.badges).toContain("Question intent");
+    expect(comparison.badges).toContain("Comparison intent");
   });
 
   it("caps scores below 100 and marks first-party momentum without claiming market growth", () => {

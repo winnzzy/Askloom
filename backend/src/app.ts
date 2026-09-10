@@ -13,6 +13,7 @@ import workspaceRoute from "./routes/workspace";
 import adminRoute from "./routes/admin";
 import suggestRoute from "./routes/suggest";
 import scriptHookRoute from "./routes/scriptHook";
+import aiStudioRoute from "./routes/aiStudio";
 import paymentRoute from "./routes/payment";
 import analyticsRoute from "./routes/analytics";
 import trendsRoute from "./routes/trends";
@@ -22,48 +23,18 @@ import { sameOriginGuard } from "./middleware/sameOrigin";
 import { optionalAuth } from "./utils/authMiddleware";
 
 const app = express();
-
 app.set("trust proxy", 1);
 app.use(requestId);
 app.use(helmet());
-app.use(
-  cors({
-    origin: config.frontendUrl,
-    credentials: true,
-  })
-);
-morgan.token("request-id", (_req, res) =>
-  String((res as express.Response).locals.requestId ?? "-")
-);
-app.use(
-  morgan(
-    config.nodeEnv === "production"
-      ? ":method :url :status :res[content-length] - :response-time ms :request-id"
-      : "dev"
-  )
-);
-app.use(
-  rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 300,
-    standardHeaders: true,
-    legacyHeaders: false,
-  })
-);
+app.use(cors({ origin: config.frontendUrl, credentials: true }));
+morgan.token("request-id", (_req, res) => String((res as express.Response).locals.requestId ?? "-"));
+app.use(morgan(config.nodeEnv === "production" ? ":method :url :status :res[content-length] - :response-time ms :request-id" : "dev"));
+app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 300, standardHeaders: true, legacyHeaders: false }));
 app.use(cookieParser());
-app.use(
-  express.json({
-    limit: "1mb",
-    verify: (req, _res, buffer) => {
-      (req as express.Request & { rawBody?: Buffer }).rawBody = Buffer.from(buffer);
-    },
-  })
-);
+app.use(express.json({ limit: "1mb", verify: (req, _res, buffer) => { (req as express.Request & { rawBody?: Buffer }).rawBody = Buffer.from(buffer); } }));
 app.use(sameOriginGuard);
 app.use(optionalAuth);
-
 app.get("/health", (_req, res) => res.json({ ok: true }));
-
 app.use("/api", healthRoute);
 app.use("/api", analyticsRoute);
 app.use("/api", trendsRoute);
@@ -74,9 +45,8 @@ app.use("/api", workspaceRoute);
 app.use("/api", adminRoute);
 app.use("/api", suggestRoute);
 app.use("/api", scriptHookRoute);
+app.use("/api", aiStudioRoute);
 app.use("/api", paymentRoute);
-
 app.use(notFoundHandler);
 app.use(errorHandler);
-
 export default app;

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { fetchPlans, startCheckout, type Plan } from "../lib/api";
+import { fetchPlans, type Plan } from "../lib/api";
 import { useAuth } from "../lib/auth";
 
 const PLANS = [
@@ -76,9 +76,7 @@ interface Props {
 }
 
 export default function Pricing({ onAuthRequired }: Props) {
-  const { user, token } = useAuth();
-  const [busyPlan, setBusyPlan] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { user } = useAuth();
   const currentPlanCode = user?.currentPlan?.code ?? "free";
   const [paidPlans, setPaidPlans] = useState<typeof PLANS>(PLANS);
 
@@ -93,39 +91,27 @@ export default function Pricing({ onAuthRequired }: Props) {
           featured: plan.code === "creator",
           features: featuresForPlan(plan),
         }));
-
         setPaidPlans([PLANS[0], ...nextPlans]);
       })
-      .catch(() => {
-        setPaidPlans(PLANS);
-      });
+      .catch(() => setPaidPlans(PLANS));
   }, []);
 
-  async function handleUpgrade(planId: string) {
+  function handleUpgrade(planId: string) {
     if (planId === "free") return;
-    if (!user) {
-      onAuthRequired();
-      return;
-    }
-    setError(null);
-    setBusyPlan(planId);
-    try {
-      const checkoutUrl = await startCheckout(planId, token);
-      window.location.href = checkoutUrl;
-    } catch (e: any) {
-      setError(e.message);
-      setBusyPlan(null);
-    }
+    if (!user) onAuthRequired();
   }
 
   return (
     <section className="pricing">
       <div className="pricing-inner">
         <h2>Plans</h2>
-        {error && <p style={{ color: "#c76b6b", fontSize: "0.85rem" }}>{error}</p>}
+        <p style={{ opacity: 0.72, fontSize: "0.85rem" }}>
+          Paid checkout is being updated for Flutterwave V4. AskLoom will not collect card, PIN, or OTP details directly.
+        </p>
         <div className="plans">
           {paidPlans.map((plan) => {
             const isCurrentPlan = currentPlanCode === plan.id;
+            const checkoutPending = plan.id !== "free" && Boolean(user);
 
             return (
               <div className={`plan-card ${plan.featured ? "featured" : ""}`} key={plan.id}>
@@ -141,13 +127,13 @@ export default function Pricing({ onAuthRequired }: Props) {
                 </ul>
                 <button
                   onClick={() => handleUpgrade(plan.id)}
-                  disabled={busyPlan === plan.id || isCurrentPlan}
+                  disabled={isCurrentPlan || checkoutPending}
                 >
                   {isCurrentPlan
                     ? "Current plan"
-                    : busyPlan === plan.id
-                    ? "Redirecting..."
-                    : "Pay with Flutterwave"}
+                    : checkoutPending
+                    ? "V4 checkout setup pending"
+                    : "Log in to upgrade"}
                 </button>
               </div>
             );

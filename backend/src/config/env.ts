@@ -13,7 +13,6 @@ const envSchema = z.object({
   JWT_SECRET: z.string().min(1).optional(),
   FLW_CLIENT_ID: z.string().min(1).optional(),
   FLW_CLIENT_SECRET: z.string().min(1).optional(),
-  FLW_ENCRYPTION_KEY: z.string().min(1).optional(),
   FLW_SECRET_HASH: z.string().min(1).optional(),
   FLW_REDIRECT_URL: z.string().url().optional(),
   FLW_ENVIRONMENT: z.enum(["sandbox", "production"]).default("sandbox"),
@@ -36,7 +35,6 @@ const requiredInProduction = [
   "JWT_SECRET",
   "FLW_CLIENT_ID",
   "FLW_CLIENT_SECRET",
-  "FLW_ENCRYPTION_KEY",
   "FLW_SECRET_HASH",
   "GEMINI_API_KEY",
   "SMTP_HOST",
@@ -71,7 +69,6 @@ export const config = {
   flutterwave: {
     clientId: env.FLW_CLIENT_ID,
     clientSecret: env.FLW_CLIENT_SECRET,
-    encryptionKey: env.FLW_ENCRYPTION_KEY,
     secretHash: env.FLW_SECRET_HASH,
     redirectUrl: env.FLW_REDIRECT_URL,
     environment: env.FLW_ENVIRONMENT,

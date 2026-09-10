@@ -50,6 +50,12 @@ function redirectUrlFrom(data: any): string | null {
   return typeof value === "string" && value.startsWith("https://") ? value : null;
 }
 
+function appendReference(url: string, reference: string): string {
+  const parsed = new URL(url);
+  parsed.searchParams.set("reference", reference);
+  return parsed.toString();
+}
+
 function isValidWebhookSignature(rawBody: Buffer, signature: string, secretHash: string): boolean {
   const digest = crypto
     .createHmac("sha256", secretHash)
@@ -102,7 +108,7 @@ router.post(
         reference: txRef,
         amount: plan.price.toString(),
         currency: plan.currency,
-        redirectUrl: config.flutterwave.redirectUrl!,
+        redirectUrl: appendReference(config.flutterwave.redirectUrl!, txRef),
         customer: {
           email: user.email,
           firstName: user.firstName,
@@ -112,9 +118,7 @@ router.post(
       });
 
       const chargeId = data?.id ? String(data.id) : null;
-      if (!chargeId) {
-        throw new Error("Flutterwave did not return a charge id");
-      }
+      if (!chargeId) throw new Error("Flutterwave did not return a charge id");
 
       const checkoutUrl = redirectUrlFrom(data);
       await prisma.paymentTransaction.update({
@@ -145,8 +149,6 @@ router.post(
         checkoutUrl,
       });
     } catch {
-      // A timeout can leave the provider charge in an unknown state, so keep
-      // the local transaction pending for later verification/reconciliation.
       return res.status(502).json({ error: "Failed to initialize payment" });
     }
   })
@@ -209,23 +211,31 @@ router.post(
 );
 
 router.get(
-  "/payment/verify/:transactionId",
+  "/payment/verify/:identifier",
   asyncHandler(async (req: Request, res: Response) => {
-    const { transactionId } = req.params;
-    if (!/^chg_[A-Za-z0-9]+$/.test(transactionId)) {
-      return res.status(400).json({ error: "Invalid charge id" });
-    }
-
+    const { identifier } = req.params;
     if (!config.flutterwave.clientId || !config.flutterwave.clientSecret) {
       return res.status(500).json({ error: "Flutterwave v4 is not configured" });
     }
 
-    try {
-      const data = await verifyFlutterwaveTransaction(transactionId);
-      const result = await activateVerifiedTransaction(data);
-      if (!result.verified) {
-        return res.status(400).json({ verified: false });
+    let chargeId = identifier;
+    if (!/^chg_[A-Za-z0-9]+$/.test(identifier)) {
+      if (!/^askloom-[A-Za-z0-9_-]+$/.test(identifier)) {
+        return res.status(400).json({ error: "Invalid payment reference" });
       }
+      const transaction = await prisma.paymentTransaction.findUnique({
+        where: { txRef: identifier },
+      });
+      if (!transaction?.providerTransactionId) {
+        return res.status(404).json({ error: "Payment transaction not found" });
+      }
+      chargeId = transaction.providerTransactionId;
+    }
+
+    try {
+      const data = await verifyFlutterwaveTransaction(chargeId);
+      const result = await activateVerifiedTransaction(data);
+      if (!result.verified) return res.status(400).json({ verified: false });
 
       return res.json({
         verified: true,
@@ -284,8 +294,6 @@ router.post(
       await processWebhookEvent(webhookEvent.id);
       return res.status(200).end();
     } catch {
-      // Acknowledge valid Flutterwave webhooks; failed events remain available
-      // for the retry worker/admin retry flow.
       return res.status(200).end();
     }
   })

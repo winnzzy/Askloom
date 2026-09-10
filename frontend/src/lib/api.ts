@@ -28,6 +28,41 @@ interface AccountResponse {
   plan: AuthPlan | null;
 }
 
+export interface AdminOverview {
+  counts: {
+    users: number;
+    activeSubscriptions: number;
+    transactions: number;
+    pendingWebhooks: number;
+    failedWebhooks: number;
+  };
+  latestTransactions: Array<{
+    id: string;
+    txRef: string;
+    userEmail: string;
+    plan: { code: string; name: string };
+    amount: string;
+    currency: string;
+    status: string;
+    createdAt: string;
+  }>;
+  latestWebhookEvents: Array<{
+    id: string;
+    provider: string;
+    eventType: string;
+    processed: boolean;
+    processingError: string | null;
+    receivedAt: string;
+    processedAt: string | null;
+  }>;
+}
+
+export interface WebhookRetryResult {
+  attempted: number;
+  processed: number;
+  errors: string[];
+}
+
 async function apiFetch(input: RequestInfo | URL, init: RequestInit = {}) {
   const response = await fetch(input, { credentials: "include", ...init });
   if (response.status !== 401) return response;
@@ -356,7 +391,7 @@ export async function addTeamMember(token: string | null, teamId: string, email:
   return res.json();
 }
 
-export async function fetchAdminOverview(token: string | null) {
+export async function fetchAdminOverview(token: string | null): Promise<AdminOverview> {
   const res = await apiFetch(`${API_BASE}/admin/overview`, {
     headers: { ...getAuthHeader(token) },
     credentials: "include",
@@ -368,7 +403,7 @@ export async function fetchAdminOverview(token: string | null) {
   return res.json();
 }
 
-export async function retryWebhooks(token: string | null) {
+export async function retryWebhooks(token: string | null): Promise<WebhookRetryResult> {
   const res = await apiFetch(`${API_BASE}/admin/webhooks/retry`, {
     method: "POST",
     headers: { ...getAuthHeader(token) },

@@ -29,6 +29,7 @@ router.get("/admin/overview", asyncHandler(async (_req: Request, res: Response) 
     pendingWebhooks,
     failedWebhooks,
     latestTransactions,
+    latestWebhookEvents,
   ] = await Promise.all([
     prisma.user.count(),
     prisma.subscription.count({ where: { status: SubscriptionStatus.ACTIVE } }),
@@ -41,6 +42,19 @@ router.get("/admin/overview", asyncHandler(async (_req: Request, res: Response) 
       include: {
         user: { select: { email: true } },
         plan: { select: { code: true, name: true } },
+      },
+    }),
+    prisma.webhookEvent.findMany({
+      orderBy: { receivedAt: "desc" },
+      take: 10,
+      select: {
+        id: true,
+        provider: true,
+        eventType: true,
+        processed: true,
+        processingError: true,
+        receivedAt: true,
+        processedAt: true,
       },
     }),
   ]);
@@ -63,6 +77,7 @@ router.get("/admin/overview", asyncHandler(async (_req: Request, res: Response) 
       status: transaction.status,
       createdAt: transaction.createdAt,
     })),
+    latestWebhookEvents,
   });
 }));
 

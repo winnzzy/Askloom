@@ -9,6 +9,8 @@ import { SUPPORTED_LANGUAGES, SUPPORTED_MARKETS } from "../services/intelligence
 const router = Router();
 router.use(requireAuth);
 
+const CONTENT_STATUSES = ["IDEA", "PLANNED", "IN_PROGRESS", "PUBLISHED"] as const;
+
 const projectSchema = z.object({
   name: z.string().trim().min(2).max(100),
   language: z.enum(SUPPORTED_LANGUAGES).default("en"),
@@ -31,6 +33,10 @@ const assignmentSchema = z.object({
   projectId: z.string().uuid().nullable(),
 });
 
+const statusSchema = z.object({
+  contentStatus: z.enum(CONTENT_STATUSES),
+});
+
 function toJson(value: unknown): Prisma.InputJsonValue {
   return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 }
@@ -40,7 +46,7 @@ router.get("/account/projects", asyncHandler(async (req: Request, res: Response)
     where: { userId: req.user!.id },
     include: {
       _count: { select: { opportunities: true } },
-      opportunities: { orderBy: { createdAt: "desc" }, take: 5 },
+      opportunities: { orderBy: { updatedAt: "desc" }, take: 5 },
     },
     orderBy: { updatedAt: "desc" },
     take: 50,
@@ -72,7 +78,7 @@ router.get("/account/opportunities", asyncHandler(async (req: Request, res: Resp
   const opportunities = await prisma.savedOpportunity.findMany({
     where: { userId: req.user!.id },
     include: { project: { select: { id: true, name: true } } },
-    orderBy: { createdAt: "desc" },
+    orderBy: { updatedAt: "desc" },
     take: 100,
   });
   return res.json({ opportunities });
@@ -152,6 +158,32 @@ router.patch("/account/opportunities/:id/project", asyncHandler(async (req: Requ
   }
 
   return res.json({ opportunity: updated });
+}));
+
+router.patch("/account/opportunities/:id/status", asyncHandler(async (req: Request, res: Response) => {
+  const parsed = statusSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid content status" });
+
+  const existing = await prisma.savedOpportunity.findFirst({
+    where: { id: req.params.id, userId: req.user!.id },
+    select: { id: true, projectId: true },
+  });
+  if (!existing) return res.status(404).json({ error: "Saved opportunity not found" });
+
+  const opportunity = await prisma.savedOpportunity.update({
+    where: { id: existing.id },
+    data: { contentStatus: parsed.data.contentStatus },
+    include: { project: { select: { id: true, name: true } } },
+  });
+
+  if (existing.projectId) {
+    await prisma.project.update({
+      where: { id: existing.projectId },
+      data: { updatedAt: new Date() },
+    });
+  }
+
+  return res.json({ opportunity });
 }));
 
 router.delete("/account/opportunities/:id", asyncHandler(async (req: Request, res: Response) => {

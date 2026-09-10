@@ -13,6 +13,7 @@ import adminRoute from "./routes/admin";
 import suggestRoute from "./routes/suggest";
 import scriptHookRoute from "./routes/scriptHook";
 import paymentRoute from "./routes/payment";
+import analyticsRoute from "./routes/analytics";
 import { errorHandler, notFoundHandler } from "./middleware/errors";
 import { requestId } from "./middleware/requestId";
 import { sameOriginGuard } from "./middleware/sameOrigin";
@@ -57,12 +58,12 @@ app.use(
   })
 );
 app.use(sameOriginGuard);
-
 app.use(optionalAuth);
 
 app.get("/health", (_req, res) => res.json({ ok: true }));
 
 app.use("/api", healthRoute);
+app.use("/api", analyticsRoute);
 app.use("/api", authRoute);
 app.use("/api", plansRoute);
 app.use("/api", accountRoute);

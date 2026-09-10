@@ -1,12 +1,19 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import "./styles.css";
+import "./intelligence.css";
 import SearchCloud from "./components/SearchCloud";
 import ResultsList from "./components/ResultsList";
 import Pricing from "./components/Pricing";
 import AuthModal from "./components/AuthModal";
-import { fetchCurrentAccount, fetchSuggestions, type GroupedResults } from "./lib/api";
+import { fetchCurrentAccount, type GroupedResults } from "./lib/api";
 import { useAuth } from "./lib/auth";
+import {
+  fetchLocalizedSuggestions,
+  trackProductEvent,
+  type ResearchLanguage,
+  type ResearchMarket,
+} from "./lib/intelligence";
 
 const copy = {
   en: {
@@ -55,6 +62,16 @@ const opportunityExamples = [
   { score: 84, label: "AI customer service agents", meta: "Commercial intent · Rising", trend: "+19%" },
 ];
 
+const markets: Array<{ code: ResearchMarket; label: string }> = [
+  { code: "NG", label: "Nigeria" },
+  { code: "US", label: "United States" },
+  { code: "GB", label: "United Kingdom" },
+  { code: "CA", label: "Canada" },
+  { code: "FR", label: "France" },
+  { code: "ES", label: "Spain" },
+  { code: "MX", label: "Mexico" },
+];
+
 export default function App() {
   const { user, token, login, logout } = useAuth();
   const [seed, setSeed] = useState("");
@@ -68,6 +85,10 @@ export default function App() {
     const saved = localStorage.getItem("askloom-language");
     return saved === "fr" || saved === "es" ? saved : "en";
   });
+  const [market, setMarket] = useState<ResearchMarket>(() => {
+    const saved = localStorage.getItem("askloom-market") as ResearchMarket | null;
+    return markets.some((item) => item.code === saved) ? saved! : "NG";
+  });
   const starterTopics = ["faceless youtube", "ai content ideas", "personal finance", "small business marketing"];
   const t = copy[language];
 
@@ -75,6 +96,16 @@ export default function App() {
     document.documentElement.lang = language;
     localStorage.setItem("askloom-language", language);
   }, [language]);
+
+  useEffect(() => {
+    localStorage.setItem("askloom-market", market);
+  }, [market]);
+
+  useEffect(() => {
+    trackProductEvent("page_view", language as ResearchLanguage, market);
+    // Intentionally count aggregate page usage only once per mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (!token) return;
@@ -88,16 +119,33 @@ export default function App() {
     return Object.values(grouped).reduce((sum, items) => sum + items.length, 0);
   }, [grouped]);
 
+  function changeLanguage(next: Language) {
+    setLanguage(next);
+    trackProductEvent("language_changed", next as ResearchLanguage, market);
+  }
+
+  function changeMarket(next: ResearchMarket) {
+    setMarket(next);
+    trackProductEvent("market_changed", language as ResearchLanguage, next);
+  }
+
+  function changeView(next: "cloud" | "list") {
+    setView(next);
+    trackProductEvent("results_view_changed", language as ResearchLanguage, market, next);
+  }
+
   async function handleSearch(e: React.FormEvent) {
     e.preventDefault();
     if (!seed.trim()) return;
     setLoading(true);
     setError(null);
+    trackProductEvent("research_started", language as ResearchLanguage, market);
     try {
-      const data = await fetchSuggestions(seed.trim(), token);
+      const data = await fetchLocalizedSuggestions(seed.trim(), language as ResearchLanguage, market, token);
       setGrouped(data.grouped);
       setSubmittedSeed(seed.trim());
       setView("cloud");
+      trackProductEvent("research_completed", language as ResearchLanguage, market);
       requestAnimationFrame(() => document.getElementById("research-results")?.scrollIntoView({ behavior: "smooth" }));
     } catch (err: any) {
       setError(err.message);
@@ -114,9 +162,9 @@ export default function App() {
           {t.nav.map((item, index) => <a key={item} href={index === 0 ? "#discover" : index === 1 ? "#opportunities" : index === 2 ? "#trends" : "#workflow"}>{item}</a>)}
         </nav>
         <div className="account-area">
-          <label className="language-picker" aria-label="Language">
+          <label className="language-picker" aria-label="Interface language">
             <span>🌐</span>
-            <select value={language} onChange={(e) => setLanguage(e.target.value as Language)}>
+            <select value={language} onChange={(e) => changeLanguage(e.target.value as Language)}>
               <option value="en">EN</option><option value="fr">FR</option><option value="es">ES</option>
             </select>
           </label>
@@ -136,6 +184,11 @@ export default function App() {
               <input value={seed} onChange={(e) => setSeed(e.target.value)} placeholder={t.placeholder} aria-label="Research topic" />
               <button type="submit" disabled={loading}>{loading ? t.searching : t.search}</button>
             </form>
+            <div className="research-dimensions" aria-label="Research targeting">
+              <label className="dimension-control"><span>Research language</span><select value={language} onChange={(e) => changeLanguage(e.target.value as Language)}><option value="en">English</option><option value="fr">Français</option><option value="es">Español</option></select></label>
+              <label className="dimension-control"><span>Target market</span><select value={market} onChange={(e) => changeMarket(e.target.value as ResearchMarket)}>{markets.map((item) => <option key={item.code} value={item.code}>{item.label}</option>)}</select></label>
+            </div>
+            <p className="research-note"><span className="privacy-badge">Trend signals are aggregated without user, IP, cookie or device identifiers.</span></p>
             <div className="topic-chips" aria-label="Starter topics">
               {starterTopics.map((topic) => <button key={topic} type="button" onClick={() => setSeed(topic)}>{topic}</button>)}
             </div>
@@ -176,7 +229,7 @@ export default function App() {
 
         {grouped && (
           <section className="results" id="research-results">
-            <div className="results-toolbar"><div><span className="result-kicker">RESEARCH WORKSPACE · {resultCount} SIGNALS</span><h2>Results for “{submittedSeed}”</h2></div><div className="view-toggle"><button className={view === "cloud" ? "active" : ""} onClick={() => setView("cloud")}>Visual map</button><button className={view === "list" ? "active" : ""} onClick={() => setView("list")}>Action list</button></div></div>
+            <div className="results-toolbar"><div><span className="result-kicker">RESEARCH WORKSPACE · {resultCount} SIGNALS · {language.toUpperCase()} · {market}</span><h2>Results for “{submittedSeed}”</h2></div><div className="view-toggle"><button className={view === "cloud" ? "active" : ""} onClick={() => changeView("cloud")}>Visual map</button><button className={view === "list" ? "active" : ""} onClick={() => changeView("list")}>Action list</button></div></div>
             {view === "cloud" ? <div className="cloud-result-panel"><SearchCloud seed={submittedSeed} grouped={grouped} /></div> : <ResultsList grouped={grouped} token={token} />}
           </section>
         )}

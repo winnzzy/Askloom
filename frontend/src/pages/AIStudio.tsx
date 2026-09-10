@@ -13,21 +13,11 @@ import {
 } from "../lib/aiStudio";
 import "./aiStudio.css";
 
-const sectionLabels: Array<{ key: StudioSection; label: string }> = [
-  { key: "titles", label: "Titles" },
-  { key: "hooks", label: "Hooks" },
-  { key: "contentBrief", label: "Brief" },
-  { key: "outline", label: "Outline" },
-  { key: "script", label: "Script" },
-  { key: "shorts", label: "Shorts" },
-  { key: "description", label: "Description" },
-  { key: "nextSteps", label: "Next steps" },
-];
-
 export default function AIStudio() {
   const { user, token } = useAuth();
   const [params] = useSearchParams();
   const opportunityId = params.get("opportunityId");
+  const assetId = params.get("assetId");
   const [topic, setTopic] = useState(params.get("topic") || "");
   const [format, setFormat] = useState<StudioFormat>("youtube");
   const [tone, setTone] = useState<StudioTone>("educational");
@@ -39,18 +29,23 @@ export default function AIStudio() {
   const [regenerating, setRegenerating] = useState<StudioSection | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function reloadVersions(selectLatest = false) {
+  function applyAsset(asset: StudioAsset) {
+    setCurrentAsset(asset);
+    setResult(asset.content);
+    setTopic(asset.topic);
+    setFormat(asset.format);
+    setTone(asset.tone);
+    setAudience(asset.audience);
+  }
+
+  async function reloadVersions(selectPreferred = false) {
     if (!token) return;
     try {
       const assets = await fetchStudioAssets(token, opportunityId);
       setVersions(assets);
-      if (selectLatest && assets[0]) {
-        setCurrentAsset(assets[0]);
-        setResult(assets[0].content);
-        setTopic(assets[0].topic);
-        setFormat(assets[0].format);
-        setTone(assets[0].tone);
-        setAudience(assets[0].audience);
+      if (selectPreferred) {
+        const preferred = (assetId ? assets.find((asset) => asset.id === assetId) : undefined) || assets[0];
+        if (preferred) applyAsset(preferred);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load Studio history");
@@ -61,22 +56,15 @@ export default function AIStudio() {
     if (!user || !token) return;
     reloadVersions(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id, token, opportunityId]);
+  }, [user?.id, token, opportunityId, assetId]);
 
   async function generate() {
     if (!topic.trim()) return;
     setLoading(true);
     setError(null);
     try {
-      const response = await generateStudioPackage(token, {
-        topic: topic.trim(),
-        format,
-        audience,
-        tone,
-        opportunityId,
-      });
-      setResult(response.content);
-      setCurrentAsset(response.asset);
+      const response = await generateStudioPackage(token, { topic: topic.trim(), format, audience, tone, opportunityId });
+      applyAsset(response.asset);
       await reloadVersions(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Generation failed");
@@ -91,8 +79,7 @@ export default function AIStudio() {
     setError(null);
     try {
       const response = await regenerateStudioSection(token, currentAsset.id, section);
-      setResult(response.content);
-      setCurrentAsset(response.asset);
+      applyAsset(response.asset);
       await reloadVersions(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Section regeneration failed");
@@ -102,12 +89,7 @@ export default function AIStudio() {
   }
 
   function viewVersion(asset: StudioAsset) {
-    setCurrentAsset(asset);
-    setResult(asset.content);
-    setTopic(asset.topic);
-    setFormat(asset.format);
-    setTone(asset.tone);
-    setAudience(asset.audience);
+    applyAsset(asset);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -118,7 +100,7 @@ export default function AIStudio() {
   ) : null;
 
   return <main className="studio-page">
-    <header className="studio-header"><Link className="wordmark" to="/">Ask<span>Loom</span></Link><nav><Link to="/">Discover</Link><Link to="/trends">Trends</Link><Link className="active" to="/ai-studio">AI Studio</Link><Link to="/account">Workspace</Link></nav></header>
+    <header className="studio-header"><Link className="wordmark" to="/">Ask<span>Loom</span></Link><nav><Link to="/">Discover</Link><Link to="/trends">Trends</Link><Link className="active" to="/ai-studio">AI Studio</Link><Link to="/studio-library">Studio Library</Link><Link to="/account">Workspace</Link></nav></header>
     <section className="studio-hero"><div><span className="eyebrow">FROM AUDIENCE SIGNAL TO CONTENT</span><h1>AI Studio</h1><p>Turn a validated opportunity into a production-ready content package. Every generation is saved as a version so you can improve sections without losing earlier work.</p></div><div className="studio-status"><span>{user ? `Signed in as ${user.email}` : "Sign in required"}</span><strong>{currentAsset ? `Version ${currentAsset.version}` : user?.currentPlan?.name || "Free"}</strong>{currentAsset?.project && <small>{currentAsset.project.name}</small>}</div></section>
     <section className="studio-grid">
       <aside className="studio-controls">
@@ -127,6 +109,7 @@ export default function AIStudio() {
         <label><span>Audience</span><input value={audience} onChange={e=>setAudience(e.target.value)} /></label>
         <label><span>Tone</span><select value={tone} onChange={e=>setTone(e.target.value as StudioTone)}><option value="educational">Educational</option><option value="conversational">Conversational</option><option value="authoritative">Authoritative</option><option value="storytelling">Storytelling</option></select></label>
         <button className="studio-generate" disabled={loading || !topic.trim() || !user} onClick={generate}>{loading ? "Building package…" : currentAsset ? "Generate new version" : "Generate content package"}</button>
+        <Link className="studio-library-link" to="/studio-library">Browse all Studio assets</Link>
         {!user && <p className="studio-hint">Log in from the homepage to generate. AI Studio uses your plan's AI generation allowance.</p>}
         {opportunityId && <p className="studio-hint">This Studio is attached to a saved opportunity. New versions inherit its current project.</p>}
         {error && <p className="studio-error">{error}</p>}

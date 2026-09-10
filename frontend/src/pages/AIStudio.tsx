@@ -1,51 +1,147 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useAuth } from "../lib/auth";
-import { generateStudioPackage, type StudioFormat, type StudioPackage, type StudioTone } from "../lib/aiStudio";
+import {
+  fetchStudioAssets,
+  generateStudioPackage,
+  regenerateStudioSection,
+  type StudioAsset,
+  type StudioFormat,
+  type StudioPackage,
+  type StudioSection,
+  type StudioTone,
+} from "../lib/aiStudio";
 import "./aiStudio.css";
+
+const sectionLabels: Array<{ key: StudioSection; label: string }> = [
+  { key: "titles", label: "Titles" },
+  { key: "hooks", label: "Hooks" },
+  { key: "contentBrief", label: "Brief" },
+  { key: "outline", label: "Outline" },
+  { key: "script", label: "Script" },
+  { key: "shorts", label: "Shorts" },
+  { key: "description", label: "Description" },
+  { key: "nextSteps", label: "Next steps" },
+];
 
 export default function AIStudio() {
   const { user, token } = useAuth();
   const [params] = useSearchParams();
+  const opportunityId = params.get("opportunityId");
   const [topic, setTopic] = useState(params.get("topic") || "");
   const [format, setFormat] = useState<StudioFormat>("youtube");
   const [tone, setTone] = useState<StudioTone>("educational");
   const [audience, setAudience] = useState("content creators and curious viewers");
   const [result, setResult] = useState<StudioPackage | null>(null);
+  const [currentAsset, setCurrentAsset] = useState<StudioAsset | null>(null);
+  const [versions, setVersions] = useState<StudioAsset[]>([]);
   const [loading, setLoading] = useState(false);
+  const [regenerating, setRegenerating] = useState<StudioSection | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  async function reloadVersions(selectLatest = false) {
+    if (!token) return;
+    try {
+      const assets = await fetchStudioAssets(token, opportunityId);
+      setVersions(assets);
+      if (selectLatest && assets[0]) {
+        setCurrentAsset(assets[0]);
+        setResult(assets[0].content);
+        setTopic(assets[0].topic);
+        setFormat(assets[0].format);
+        setTone(assets[0].tone);
+        setAudience(assets[0].audience);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not load Studio history");
+    }
+  }
+
+  useEffect(() => {
+    if (!user || !token) return;
+    reloadVersions(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, token, opportunityId]);
 
   async function generate() {
     if (!topic.trim()) return;
-    setLoading(true); setError(null);
-    try { setResult(await generateStudioPackage(token, { topic: topic.trim(), format, audience, tone })); }
-    catch (err) { setError(err instanceof Error ? err.message : "Generation failed"); }
-    finally { setLoading(false); }
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await generateStudioPackage(token, {
+        topic: topic.trim(),
+        format,
+        audience,
+        tone,
+        opportunityId,
+      });
+      setResult(response.content);
+      setCurrentAsset(response.asset);
+      await reloadVersions(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Generation failed");
+    } finally {
+      setLoading(false);
+    }
   }
+
+  async function regenerate(section: StudioSection) {
+    if (!currentAsset) return;
+    setRegenerating(section);
+    setError(null);
+    try {
+      const response = await regenerateStudioSection(token, currentAsset.id, section);
+      setResult(response.content);
+      setCurrentAsset(response.asset);
+      await reloadVersions(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Section regeneration failed");
+    } finally {
+      setRegenerating(null);
+    }
+  }
+
+  function viewVersion(asset: StudioAsset) {
+    setCurrentAsset(asset);
+    setResult(asset.content);
+    setTopic(asset.topic);
+    setFormat(asset.format);
+    setTone(asset.tone);
+    setAudience(asset.audience);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  const regenerateButton = (section: StudioSection) => currentAsset ? (
+    <button className="studio-regenerate" disabled={Boolean(regenerating)} onClick={() => regenerate(section)}>
+      {regenerating === section ? "Regenerating…" : "Regenerate"}
+    </button>
+  ) : null;
 
   return <main className="studio-page">
     <header className="studio-header"><Link className="wordmark" to="/">Ask<span>Loom</span></Link><nav><Link to="/">Discover</Link><Link to="/trends">Trends</Link><Link className="active" to="/ai-studio">AI Studio</Link><Link to="/account">Workspace</Link></nav></header>
-    <section className="studio-hero"><div><span className="eyebrow">FROM AUDIENCE SIGNAL TO CONTENT</span><h1>AI Studio</h1><p>Turn a validated opportunity into a production-ready content package. AskLoom keeps unsupported facts out of the draft and marks claims that need research.</p></div><div className="studio-status"><span>{user ? `Signed in as ${user.email}` : "Sign in required"}</span><strong>{user?.currentPlan?.name || "Free"}</strong></div></section>
+    <section className="studio-hero"><div><span className="eyebrow">FROM AUDIENCE SIGNAL TO CONTENT</span><h1>AI Studio</h1><p>Turn a validated opportunity into a production-ready content package. Every generation is saved as a version so you can improve sections without losing earlier work.</p></div><div className="studio-status"><span>{user ? `Signed in as ${user.email}` : "Sign in required"}</span><strong>{currentAsset ? `Version ${currentAsset.version}` : user?.currentPlan?.name || "Free"}</strong>{currentAsset?.project && <small>{currentAsset.project.name}</small>}</div></section>
     <section className="studio-grid">
       <aside className="studio-controls">
         <label><span>Opportunity / topic</span><textarea value={topic} onChange={e=>setTopic(e.target.value)} placeholder="Paste a ranked opportunity or audience question" /></label>
         <label><span>Primary format</span><select value={format} onChange={e=>setFormat(e.target.value as StudioFormat)}><option value="youtube">YouTube video</option><option value="shorts">Short-form video</option><option value="article">Article / blog</option></select></label>
         <label><span>Audience</span><input value={audience} onChange={e=>setAudience(e.target.value)} /></label>
         <label><span>Tone</span><select value={tone} onChange={e=>setTone(e.target.value as StudioTone)}><option value="educational">Educational</option><option value="conversational">Conversational</option><option value="authoritative">Authoritative</option><option value="storytelling">Storytelling</option></select></label>
-        <button className="studio-generate" disabled={loading || !topic.trim() || !user} onClick={generate}>{loading ? "Building package…" : "Generate content package"}</button>
+        <button className="studio-generate" disabled={loading || !topic.trim() || !user} onClick={generate}>{loading ? "Building package…" : currentAsset ? "Generate new version" : "Generate content package"}</button>
         {!user && <p className="studio-hint">Log in from the homepage to generate. AI Studio uses your plan's AI generation allowance.</p>}
+        {opportunityId && <p className="studio-hint">This Studio is attached to a saved opportunity. New versions inherit its current project.</p>}
         {error && <p className="studio-error">{error}</p>}
+        {versions.length > 0 && <div className="studio-history"><div className="studio-history-title"><span>VERSION HISTORY</span><b>{versions.length}</b></div>{versions.map(asset=><button key={asset.id} className={currentAsset?.id===asset.id?"active":""} onClick={()=>viewVersion(asset)}><strong>v{asset.version}</strong><span>{new Date(asset.createdAt).toLocaleString()}</span></button>)}</div>}
       </aside>
       <div className="studio-output">
         {!result ? <div className="studio-empty"><span>✦</span><h2>Your content package will appear here.</h2><p>Start with an opportunity discovered in AskLoom, then choose the audience, format and tone.</p></div> : <>
-          <section><span className="studio-kicker">TITLE OPTIONS</span>{result.titles.map((x,i)=><h3 key={i}>{i+1}. {x}</h3>)}</section>
-          <section><span className="studio-kicker">OPENING HOOKS</span>{result.hooks.map((x,i)=><blockquote key={i}>{x}</blockquote>)}</section>
-          <section><span className="studio-kicker">CONTENT BRIEF</span><p>{result.contentBrief}</p></section>
-          <section><span className="studio-kicker">STRUCTURE</span>{result.outline.map((x,i)=><div className="outline-row" key={i}><strong>{x.section}</strong><ul>{x.points.map((p,j)=><li key={j}>{p}</li>)}</ul></div>)}</section>
-          <section><span className="studio-kicker">DRAFT SCRIPT</span><pre className="studio-script">{result.script}</pre></section>
-          <section><span className="studio-kicker">SHORT-FORM VARIATIONS</span><div className="short-grid">{result.shorts.map((x,i)=><article key={i}><strong>{x.title}</strong><b>{x.hook}</b><p>{x.body}</p><small>{x.cta}</small></article>)}</div></section>
-          <section><span className="studio-kicker">DESCRIPTION</span><p>{result.description}</p></section>
-          <section><span className="studio-kicker">NEXT STEPS</span><ol>{result.nextSteps.map((x,i)=><li key={i}>{x}</li>)}</ol></section>
+          <section><div className="studio-section-head"><span className="studio-kicker">TITLE OPTIONS</span>{regenerateButton("titles")}</div>{result.titles.map((x,i)=><h3 key={i}>{i+1}. {x}</h3>)}</section>
+          <section><div className="studio-section-head"><span className="studio-kicker">OPENING HOOKS</span>{regenerateButton("hooks")}</div>{result.hooks.map((x,i)=><blockquote key={i}>{x}</blockquote>)}</section>
+          <section><div className="studio-section-head"><span className="studio-kicker">CONTENT BRIEF</span>{regenerateButton("contentBrief")}</div><p>{result.contentBrief}</p></section>
+          <section><div className="studio-section-head"><span className="studio-kicker">STRUCTURE</span>{regenerateButton("outline")}</div>{result.outline.map((x,i)=><div className="outline-row" key={i}><strong>{x.section}</strong><ul>{x.points.map((p,j)=><li key={j}>{p}</li>)}</ul></div>)}</section>
+          <section><div className="studio-section-head"><span className="studio-kicker">DRAFT SCRIPT</span>{regenerateButton("script")}</div><pre className="studio-script">{result.script}</pre></section>
+          <section><div className="studio-section-head"><span className="studio-kicker">SHORT-FORM VARIATIONS</span>{regenerateButton("shorts")}</div><div className="short-grid">{result.shorts.map((x,i)=><article key={i}><strong>{x.title}</strong><b>{x.hook}</b><p>{x.body}</p><small>{x.cta}</small></article>)}</div></section>
+          <section><div className="studio-section-head"><span className="studio-kicker">DESCRIPTION</span>{regenerateButton("description")}</div><p>{result.description}</p></section>
+          <section><div className="studio-section-head"><span className="studio-kicker">NEXT STEPS</span>{regenerateButton("nextSteps")}</div><ol>{result.nextSteps.map((x,i)=><li key={i}>{x}</li>)}</ol></section>
         </>}
       </div>
     </section>

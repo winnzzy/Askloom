@@ -1,5 +1,4 @@
 import { Router, Request, Response } from "express";
-import crypto from "crypto";
 import { PaymentProvider } from "@prisma/client";
 import { config } from "../config/env";
 import prisma from "../lib/prisma";
@@ -12,18 +11,9 @@ import {
   verifyFlutterwaveTransaction,
 } from "../services/payments";
 import { asyncHandler } from "../utils/asyncHandler";
+import { isValidFlutterwaveWebhookSignature } from "../utils/flutterwaveWebhook";
 
 const router = Router();
-
-function isValidWebhookSignature(rawBody: Buffer, signature: string, secretHash: string): boolean {
-  const digest = crypto
-    .createHmac("sha256", secretHash)
-    .update(rawBody)
-    .digest("base64");
-  const left = Buffer.from(digest);
-  const right = Buffer.from(signature);
-  return left.length === right.length && crypto.timingSafeEqual(left, right);
-}
 
 router.post("/payment/initialize", (_req: Request, res: Response) => {
   return res.status(503).json({
@@ -80,7 +70,11 @@ router.post(
     if (
       typeof signature !== "string" ||
       !rawBody ||
-      !isValidWebhookSignature(rawBody, signature, config.flutterwave.secretHash)
+      !isValidFlutterwaveWebhookSignature(
+        rawBody,
+        signature,
+        config.flutterwave.secretHash
+      )
     ) {
       return res.status(401).end();
     }
@@ -113,7 +107,7 @@ router.post(
           },
         }));
 
-      // Persist first, acknowledge immediately, then process in the background.
+      // Persist first, acknowledge immediately, then process asynchronously.
       // If processing fails or the instance stops, the retry worker/admin retry
       // flow will pick up this unprocessed event later.
       res.status(200).end();

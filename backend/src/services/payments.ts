@@ -73,19 +73,31 @@ export async function activateVerifiedTransaction(data: any) {
   }
 
   if (transaction.status === PaymentTransactionStatus.SUCCESSFUL) {
+    const activeSubscription = await prisma.subscription.findFirst({
+      where: {
+        userId: transaction.userId,
+        planId: transaction.planId,
+        status: SubscriptionStatus.ACTIVE,
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
     return {
       verified: true as const,
       plan: transaction.plan.code,
-      currentPeriodEnd: null,
+      currentPeriodEnd: activeSubscription?.currentPeriodEnd ?? null,
     };
   }
 
   const now = new Date();
   const currentPeriodEnd = addBillingInterval(now, transaction.plan.billingInterval);
 
-  await prisma.$transaction(async (tx) => {
-    await tx.paymentTransaction.update({
-      where: { id: transaction.id },
+  const activated = await prisma.$transaction(async (tx) => {
+    const claimed = await tx.paymentTransaction.updateMany({
+      where: {
+        id: transaction.id,
+        status: { not: PaymentTransactionStatus.SUCCESSFUL },
+      },
       data: {
         status: PaymentTransactionStatus.SUCCESSFUL,
         providerTransactionId,
@@ -93,6 +105,10 @@ export async function activateVerifiedTransaction(data: any) {
         verifiedAt: now,
       },
     });
+
+    if (claimed.count === 0) {
+      return false;
+    }
 
     await tx.subscription.updateMany({
       where: {
@@ -115,7 +131,26 @@ export async function activateVerifiedTransaction(data: any) {
         currentPeriodEnd,
       },
     });
+
+    return true;
   });
+
+  if (!activated) {
+    const activeSubscription = await prisma.subscription.findFirst({
+      where: {
+        userId: transaction.userId,
+        planId: transaction.planId,
+        status: SubscriptionStatus.ACTIVE,
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    return {
+      verified: true as const,
+      plan: transaction.plan.code,
+      currentPeriodEnd: activeSubscription?.currentPeriodEnd ?? null,
+    };
+  }
 
   return {
     verified: true as const,

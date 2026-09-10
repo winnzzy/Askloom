@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { login as loginRequest, signup } from "../lib/api";
+import { login as loginRequest, requestPasswordReset, signup } from "../lib/api";
 import { useAuth } from "../lib/auth";
 
 interface Props {
@@ -16,11 +16,13 @@ export default function AuthModal({ onClose }: Props) {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setNotice(null);
     setBusy(true);
 
     try {
@@ -33,6 +35,25 @@ export default function AuthModal({ onClose }: Props) {
       onClose();
     } catch (err: any) {
       setError(err.message || "Authentication failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleForgotPassword() {
+    if (!email) {
+      setError("Enter your email first.");
+      return;
+    }
+
+    setError(null);
+    setNotice(null);
+    setBusy(true);
+    try {
+      const result = await requestPasswordReset(email);
+      setNotice(result.resetToken ? `Dev reset token: ${result.resetToken}` : "Password reset email sent.");
+    } catch (err: any) {
+      setError(err.message || "Password reset failed");
     } finally {
       setBusy(false);
     }
@@ -96,9 +117,15 @@ export default function AuthModal({ onClose }: Props) {
             minLength={mode === "signup" ? 8 : 1}
           />
           {error && <p className="auth-error">{error}</p>}
+          {notice && <p className="notice">{notice}</p>}
           <button type="submit" disabled={busy}>
             {busy ? "Working..." : mode === "signup" ? "Create account" : "Log in"}
           </button>
+          {mode === "login" && (
+            <button className="text-button" type="button" onClick={handleForgotPassword} disabled={busy}>
+              Forgot password
+            </button>
+          )}
         </form>
       </div>
     </div>

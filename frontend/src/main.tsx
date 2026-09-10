@@ -6,6 +6,8 @@ import { AuthProvider } from "./lib/auth";
 import PaymentCallback from "./pages/PaymentCallback";
 import AccountSettings from "./pages/AccountSettings";
 import AdminDashboard from "./pages/AdminDashboard";
+import ResetPassword from "./pages/ResetPassword";
+import VerifyEmail from "./pages/VerifyEmail";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
@@ -16,6 +18,8 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
           <Route path="/account" element={<AccountSettings />} />
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/payment/callback" element={<PaymentCallback />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="/verify-email" element={<VerifyEmail />} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>

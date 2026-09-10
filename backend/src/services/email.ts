@@ -52,7 +52,7 @@ export async function sendEmail({ to, subject, text }: EmailParams) {
 }
 
 export async function sendPasswordResetEmail(to: string, token: string) {
-  const resetUrl = `${config.frontendUrl}/account?resetToken=${encodeURIComponent(token)}`;
+  const resetUrl = `${config.frontendUrl}/reset-password?token=${encodeURIComponent(token)}`;
   await sendEmail({
     to,
     subject: "Reset your AskLoom password",
@@ -61,7 +61,7 @@ export async function sendPasswordResetEmail(to: string, token: string) {
 }
 
 export async function sendVerificationEmail(to: string, token: string) {
-  const verifyUrl = `${config.frontendUrl}/account?verificationToken=${encodeURIComponent(token)}`;
+  const verifyUrl = `${config.frontendUrl}/verify-email?token=${encodeURIComponent(token)}`;
   await sendEmail({
     to,
     subject: "Verify your AskLoom email",

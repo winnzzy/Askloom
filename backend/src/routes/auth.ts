@@ -253,15 +253,27 @@ router.post("/auth/refresh", async (req: Request, res: Response) => {
       include: { user: true },
     });
 
-    if (!session || session.revokedAt || session.expiresAt <= new Date()) {
+    const now = new Date();
+    if (!session || session.revokedAt || session.expiresAt <= now) {
       clearRefreshCookie(res);
       return res.status(401).json({ error: "Authentication required" });
     }
 
-    await prisma.refreshSession.update({
-      where: { id: session.id },
-      data: { revokedAt: new Date() },
+    // Atomically claim this refresh session. Only one concurrent request can
+    // rotate a given refresh token; replay/racing requests are rejected.
+    const claimed = await prisma.refreshSession.updateMany({
+      where: {
+        id: session.id,
+        revokedAt: null,
+        expiresAt: { gt: now },
+      },
+      data: { revokedAt: now },
     });
+
+    if (claimed.count !== 1) {
+      clearRefreshCookie(res);
+      return res.status(401).json({ error: "Authentication required" });
+    }
 
     return sendAuthResponse(res, session.user);
   } catch (error) {

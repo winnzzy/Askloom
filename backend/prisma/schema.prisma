@@ -113,7 +113,7 @@ model Subscription {
 model PaymentTransaction {
   id                    String                   @id @default(uuid()) @db.Uuid
   userId                String                   @db.Uuid
-  planId                String                   @db.Uuid
+  planId                 String                   @db.Uuid
   txRef                 String                   @unique
   providerTransactionId String?                  @unique
   amount                Decimal                  @db.Decimal(10, 2)
@@ -218,6 +218,44 @@ model SearchHistory {
   createdAt DateTime @default(now())
 
   @@index([userId, createdAt])
+}
+
+// Privacy-first aggregate used for trend intelligence. It intentionally has no
+// user, IP, cookie, session, or device identifier.
+model SearchSignalDaily {
+  id               String   @id @default(uuid()) @db.Uuid
+  signalDate       DateTime @db.Date
+  normalizedSeed   String
+  language         String
+  market           String
+  sourcesKey       String
+  searchCount      Int      @default(0)
+  resultCountTotal Int      @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@unique([signalDate, normalizedSeed, language, market, sourcesKey])
+  @@index([normalizedSeed, signalDate])
+  @@index([market, language, signalDate])
+}
+
+// Daily product analytics are aggregate counters rather than individual user
+// event rows. This is sufficient for funnels and product trends without a
+// behavioral profile tied to a person.
+model ProductMetricDaily {
+  id        String   @id @default(uuid()) @db.Uuid
+  metricDate DateTime @db.Date
+  eventName String
+  language  String
+  market    String
+  platform  String
+  count     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([metricDate, eventName, language, market, platform])
+  @@index([eventName, metricDate])
+  @@index([market, language, metricDate])
 }
 
 model Team {

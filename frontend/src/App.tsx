@@ -234,7 +234,7 @@ export default function App() {
         {grouped && (
           <section className="results" id="research-results">
             <div className="results-toolbar"><div><span className="result-kicker">RESEARCH WORKSPACE · {resultCount} SIGNALS · {language.toUpperCase()} · {market}</span><h2>Results for “{submittedSeed}”</h2></div><div className="view-toggle"><button className={view === "cloud" ? "active" : ""} onClick={() => changeView("cloud")}>Visual map</button><button className={view === "list" ? "active" : ""} onClick={() => changeView("list")}>Action list</button></div></div>
-            <OpportunityPanel opportunities={opportunities} token={token} />
+            <OpportunityPanel opportunities={opportunities} seed={submittedSeed} language={language as ResearchLanguage} market={market} token={token} onAuthRequired={() => setAuthOpen(true)} />
             {view === "cloud" ? <div className="cloud-result-panel"><SearchCloud seed={submittedSeed} grouped={grouped} /></div> : <ResultsList grouped={grouped} token={token} />}
           </section>
         )}

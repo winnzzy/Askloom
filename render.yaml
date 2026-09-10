@@ -18,14 +18,16 @@ services:
         sync: false
       - key: JWT_SECRET
         generateValue: true
-      - key: FLW_PUBLIC_KEY
+      - key: FLW_CLIENT_ID
         sync: false
-      - key: FLW_SECRET_KEY
+      - key: FLW_CLIENT_SECRET
         sync: false
       - key: FLW_SECRET_HASH
         sync: false
       - key: FLW_REDIRECT_URL
         sync: false
+      - key: FLW_ENVIRONMENT
+        value: sandbox
       - key: GEMINI_API_KEY
         sync: false
       - key: SMTP_HOST

@@ -28,6 +28,7 @@ export default function AIStudio() {
   const [loading, setLoading] = useState(false);
   const [regenerating, setRegenerating] = useState<StudioSection | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [exportNotice, setExportNotice] = useState<string | null>(null);
 
   function applyAsset(asset: StudioAsset) {
     setCurrentAsset(asset);
@@ -36,6 +37,47 @@ export default function AIStudio() {
     setFormat(asset.format);
     setTone(asset.tone);
     setAudience(asset.audience);
+  }
+
+  function toMarkdown(content: StudioPackage) {
+    const outline = content.outline.map((item) => `## ${item.section}\n${item.points.map((point) => `- ${point}`).join("\n")}`).join("\n\n");
+    const shorts = content.shorts.map((item, index) => `### Short ${index + 1}: ${item.title}\n**Hook:** ${item.hook}\n\n${item.body}\n\n**CTA:** ${item.cta}`).join("\n\n");
+    return `# ${topic}\n\n**Format:** ${format}\n**Audience:** ${audience}\n**Tone:** ${tone}\n${currentAsset ? `**Version:** ${currentAsset.version}\n` : ""}\n## Title Options\n${content.titles.map((item, index) => `${index + 1}. ${item}`).join("\n")}\n\n## Opening Hooks\n${content.hooks.map((item) => `- ${item}`).join("\n")}\n\n## Content Brief\n${content.contentBrief}\n\n## Outline\n${outline}\n\n## Draft Script\n${content.script}\n\n## Short-form Variations\n${shorts}\n\n## Description\n${content.description}\n\n## Next Steps\n${content.nextSteps.map((item, index) => `${index + 1}. ${item}`).join("\n")}\n`;
+  }
+
+  async function copyPackage() {
+    if (!result) return;
+    try {
+      await navigator.clipboard.writeText(toMarkdown(result));
+      setExportNotice("Content package copied.");
+    } catch {
+      setExportNotice("Copy failed. Use Download Markdown instead.");
+    }
+  }
+
+  function downloadMarkdown() {
+    if (!result) return;
+    const blob = new Blob([toMarkdown(result)], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const safeTopic = topic.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60) || "askloom-content";
+    link.href = url;
+    link.download = `${safeTopic}${currentAsset ? `-v${currentAsset.version}` : ""}.md`;
+    link.click();
+    URL.revokeObjectURL(url);
+    setExportNotice("Markdown exported.");
+  }
+
+  function downloadJson() {
+    if (!result) return;
+    const blob = new Blob([JSON.stringify({ topic, format, audience, tone, version: currentAsset?.version ?? null, content: result }, null, 2)], { type: "application/json;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `askloom-studio${currentAsset ? `-v${currentAsset.version}` : ""}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+    setExportNotice("JSON exported.");
   }
 
   async function reloadVersions(selectPreferred = false) {
@@ -110,6 +152,8 @@ export default function AIStudio() {
         <label><span>Tone</span><select value={tone} onChange={e=>setTone(e.target.value as StudioTone)}><option value="educational">Educational</option><option value="conversational">Conversational</option><option value="authoritative">Authoritative</option><option value="storytelling">Storytelling</option></select></label>
         <button className="studio-generate" disabled={loading || !topic.trim() || !user} onClick={generate}>{loading ? "Building package…" : currentAsset ? "Generate new version" : "Generate content package"}</button>
         <Link className="studio-library-link" to="/studio-library">Browse all Studio assets</Link>
+        {result && <div className="studio-export"><span>PRODUCTION HANDOFF</span><button type="button" onClick={copyPackage}>Copy package</button><button type="button" onClick={downloadMarkdown}>Download Markdown</button><button type="button" onClick={downloadJson}>Download JSON</button></div>}
+        {exportNotice && <p className="studio-export-notice">{exportNotice}</p>}
         {!user && <p className="studio-hint">Log in from the homepage to generate. AI Studio uses your plan's AI generation allowance.</p>}
         {opportunityId && <p className="studio-hint">This Studio is attached to a saved opportunity. New versions inherit its current project.</p>}
         {error && <p className="studio-error">{error}</p>}

@@ -1,16 +1,30 @@
 import { useState } from "react";
 import { fetchScriptHooks } from "../lib/api";
-import type { Opportunity } from "../lib/intelligence";
+import type { Opportunity, ResearchLanguage, ResearchMarket } from "../lib/intelligence";
+import { saveOpportunity } from "../lib/workspace";
 
 interface Props {
   opportunities: Opportunity[];
+  seed: string;
+  language: ResearchLanguage;
+  market: ResearchMarket;
   token?: string | null;
+  onAuthRequired: () => void;
 }
 
-export default function OpportunityPanel({ opportunities, token }: Props) {
+export default function OpportunityPanel({
+  opportunities,
+  seed,
+  language,
+  market,
+  token,
+  onAuthRequired,
+}: Props) {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [hooks, setHooks] = useState<Record<string, string>>({});
   const [loadingPhrase, setLoadingPhrase] = useState<string | null>(null);
+  const [savingPhrase, setSavingPhrase] = useState<string | null>(null);
+  const [saved, setSaved] = useState<Record<string, boolean>>({});
 
   async function generateHook(phrase: string) {
     setLoadingPhrase(phrase);
@@ -23,6 +37,21 @@ export default function OpportunityPanel({ opportunities, token }: Props) {
       setExpanded(phrase);
     } finally {
       setLoadingPhrase(null);
+    }
+  }
+
+  async function handleSave(item: Opportunity) {
+    if (!token) {
+      onAuthRequired();
+      return;
+    }
+
+    setSavingPhrase(item.phrase);
+    try {
+      await saveOpportunity({ token, seed, opportunity: item, language, market });
+      setSaved((current) => ({ ...current, [item.phrase]: true }));
+    } finally {
+      setSavingPhrase(null);
     }
   }
 
@@ -66,6 +95,9 @@ export default function OpportunityPanel({ opportunities, token }: Props) {
             <div className="opportunity-actions">
               <button type="button" className="secondary-action" onClick={() => setExpanded(expanded === item.phrase ? null : item.phrase)}>
                 {expanded === item.phrase ? "Hide" : "Why?"}
+              </button>
+              <button type="button" className="secondary-action" disabled={savingPhrase === item.phrase || saved[item.phrase]} onClick={() => handleSave(item)}>
+                {saved[item.phrase] ? "Saved" : savingPhrase === item.phrase ? "Saving..." : "Save"}
               </button>
               <button type="button" className="hook-btn opportunity-hook" disabled={loadingPhrase === item.phrase} onClick={() => generateHook(item.phrase)}>
                 {loadingPhrase === item.phrase ? "Creating..." : "Create hook"}

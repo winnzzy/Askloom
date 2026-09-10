@@ -4,6 +4,7 @@ import "./styles.css";
 import "./intelligence.css";
 import SearchCloud from "./components/SearchCloud";
 import ResultsList from "./components/ResultsList";
+import OpportunityPanel from "./components/OpportunityPanel";
 import Pricing from "./components/Pricing";
 import AuthModal from "./components/AuthModal";
 import { fetchCurrentAccount, type GroupedResults } from "./lib/api";
@@ -11,6 +12,7 @@ import { useAuth } from "./lib/auth";
 import {
   fetchLocalizedSuggestions,
   trackProductEvent,
+  type Opportunity,
   type ResearchLanguage,
   type ResearchMarket,
 } from "./lib/intelligence";
@@ -77,6 +79,7 @@ export default function App() {
   const [seed, setSeed] = useState("");
   const [submittedSeed, setSubmittedSeed] = useState("");
   const [grouped, setGrouped] = useState<GroupedResults | null>(null);
+  const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState<"cloud" | "list">("cloud");
@@ -116,7 +119,7 @@ export default function App() {
 
   const resultCount = useMemo(() => {
     if (!grouped) return 0;
-    return Object.values(grouped).reduce((sum, items) => sum + items.length, 0);
+    return Object.values(grouped).reduce((sum, items) => sum + Object.values(items).reduce((inner, phrases) => inner + phrases.length, 0), 0);
   }, [grouped]);
 
   function changeLanguage(next: Language) {
@@ -143,6 +146,7 @@ export default function App() {
     try {
       const data = await fetchLocalizedSuggestions(seed.trim(), language as ResearchLanguage, market, token);
       setGrouped(data.grouped);
+      setOpportunities(data.opportunities || []);
       setSubmittedSeed(seed.trim());
       setView("cloud");
       trackProductEvent("research_completed", language as ResearchLanguage, market);
@@ -217,7 +221,7 @@ export default function App() {
           <div className="feature-grid">
             <article><span className="feature-icon">⌁</span><h3>Discover</h3><p>Explore the questions and comparisons audiences are already searching across Google and YouTube.</p></article>
             <article><span className="feature-icon">◎</span><h3>Understand</h3><p>Turn hundreds of phrases into clear audience themes and intent clusters you can actually use.</p></article>
-            <article className="featured-feature"><span className="feature-icon">↗</span><h3>Prioritize</h3><p>Build toward an AskLoom Opportunity Score that surfaces the ideas most worth your time.</p></article>
+            <article className="featured-feature"><span className="feature-icon">↗</span><h3>Prioritize</h3><p>Use the beta AskLoom Opportunity Score to surface the ideas most worth investigating first.</p></article>
             <article><span className="feature-icon">✦</span><h3>Create</h3><p>Turn a discovered question into a hook and, as AI Studio expands, a complete content workflow.</p></article>
           </div>
         </section>
@@ -230,6 +234,7 @@ export default function App() {
         {grouped && (
           <section className="results" id="research-results">
             <div className="results-toolbar"><div><span className="result-kicker">RESEARCH WORKSPACE · {resultCount} SIGNALS · {language.toUpperCase()} · {market}</span><h2>Results for “{submittedSeed}”</h2></div><div className="view-toggle"><button className={view === "cloud" ? "active" : ""} onClick={() => changeView("cloud")}>Visual map</button><button className={view === "list" ? "active" : ""} onClick={() => changeView("list")}>Action list</button></div></div>
+            <OpportunityPanel opportunities={opportunities} token={token} />
             {view === "cloud" ? <div className="cloud-result-panel"><SearchCloud seed={submittedSeed} grouped={grouped} /></div> : <ResultsList grouped={grouped} token={token} />}
           </section>
         )}

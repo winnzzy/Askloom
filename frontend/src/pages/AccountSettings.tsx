@@ -25,9 +25,18 @@ import {
   deleteSavedOpportunity,
   fetchProjects,
   fetchSavedOpportunities,
+  updateOpportunityStatus,
+  type ContentStatus,
 } from "../lib/workspace";
 import { type ResearchLanguage, type ResearchMarket } from "../lib/intelligence";
 import { useAuth } from "../lib/auth";
+
+const contentStatuses: Array<{ value: ContentStatus; label: string }> = [
+  { value: "IDEA", label: "Idea" },
+  { value: "PLANNED", label: "Planned" },
+  { value: "IN_PROGRESS", label: "In progress" },
+  { value: "PUBLISHED", label: "Published" },
+];
 
 function formatDate(value?: string | null) {
   if (!value) return "Not set";
@@ -57,6 +66,13 @@ export default function AccountSettings() {
   const usedTeamSeats = useMemo(
     () => teams.reduce((sum, team) => sum + (team.memberships?.length ?? 0), 0),
     [teams]
+  );
+  const pipelineCounts = useMemo(
+    () => contentStatuses.reduce<Record<string, number>>((acc, item) => {
+      acc[item.value] = opportunities.filter((opportunity) => (opportunity.contentStatus ?? "IDEA") === item.value).length;
+      return acc;
+    }, {}),
+    [opportunities]
   );
 
   useEffect(() => {
@@ -220,6 +236,17 @@ export default function AccountSettings() {
     }
   }
 
+  async function changeOpportunityStatus(opportunityId: string, contentStatus: ContentStatus) {
+    if (!token) return;
+    try {
+      const result = await updateOpportunityStatus(token, opportunityId, contentStatus);
+      setOpportunities((current) => current.map((item) => item.id === opportunityId ? result.opportunity : item));
+      setNotice(`Content status changed to ${contentStatuses.find((item) => item.value === contentStatus)?.label ?? contentStatus}.`);
+    } catch (error: any) {
+      setNotice(error.message);
+    }
+  }
+
   async function removeOpportunity(opportunityId: string) {
     if (!token) return;
     try {
@@ -272,19 +299,13 @@ export default function AccountSettings() {
   async function createVerificationToken() {
     if (!token) return;
     const result = await requestEmailVerification(token);
-    setNotice(
-      result.verificationToken
-        ? `Dev verification token: ${result.verificationToken}`
-        : "Verification email queued."
-    );
+    setNotice(result.verificationToken ? `Dev verification token: ${result.verificationToken}` : "Verification email queued.");
   }
 
   async function sendResetToken() {
     if (!user?.email) return;
     const result = await requestPasswordReset(user.email);
-    setNotice(
-      result.resetToken ? `Dev reset token: ${result.resetToken}` : "Password reset email queued."
-    );
+    setNotice(result.resetToken ? `Dev reset token: ${result.resetToken}` : "Password reset email queued.");
   }
 
   return (
@@ -315,6 +336,9 @@ export default function AccountSettings() {
             <div><span className="result-kicker">CONTENT WORKSPACE</span><h2>Projects</h2></div>
             <span>{projects.length} projects · {opportunities.length} saved ideas</span>
           </div>
+          <div className="pipeline-summary" aria-label="Content pipeline summary">
+            {contentStatuses.map((status) => <div key={status.value}><strong>{pipelineCounts[status.value] ?? 0}</strong><span>{status.label}</span></div>)}
+          </div>
           <form className="settings-form inline" onSubmit={createProjectSubmit}>
             <input value={projectName} onChange={(e) => setProjectName(e.target.value)} placeholder="e.g. Q4 YouTube Growth" maxLength={100} />
             <button disabled={busy || projectName.trim().length < 2}>Create project</button>
@@ -334,7 +358,7 @@ export default function AccountSettings() {
         <div className="settings-panel account-panel workspace-wide-panel">
           <div className="account-panel-heading">
             <div><span className="result-kicker">OPPORTUNITY LIBRARY</span><h2>Saved opportunities</h2></div>
-            <span>Ranked ideas you chose to keep</span>
+            <span>Research → plan → create → publish</span>
           </div>
           <div className="saved-opportunity-list">
             {opportunities.map((opportunity) => (
@@ -344,6 +368,9 @@ export default function AccountSettings() {
                   <strong>{opportunity.phrase}</strong>
                   <span>{opportunity.seed} · {opportunity.intent?.replace("-", " ")} · {opportunity.language?.toUpperCase()} · {opportunity.market}</span>
                 </div>
+                <select value={opportunity.contentStatus ?? "IDEA"} onChange={(e) => changeOpportunityStatus(opportunity.id, e.target.value as ContentStatus)} aria-label={`Content status for ${opportunity.phrase}`}>
+                  {contentStatuses.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}
+                </select>
                 <select value={opportunity.project?.id ?? ""} onChange={(e) => moveOpportunity(opportunity.id, e.target.value)} aria-label={`Project for ${opportunity.phrase}`}>
                   <option value="">Unassigned</option>
                   {projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}

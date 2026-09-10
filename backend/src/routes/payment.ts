@@ -113,8 +113,12 @@ router.post(
           },
         }));
 
-      await processWebhookEvent(webhookEvent.id);
-      return res.status(200).end();
+      // Persist first, acknowledge immediately, then process in the background.
+      // If processing fails or the instance stops, the retry worker/admin retry
+      // flow will pick up this unprocessed event later.
+      res.status(200).end();
+      void processWebhookEvent(webhookEvent.id).catch(() => undefined);
+      return;
     } catch {
       return res.status(200).end();
     }

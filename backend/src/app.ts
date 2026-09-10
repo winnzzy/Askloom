@@ -14,11 +14,14 @@ import suggestRoute from "./routes/suggest";
 import scriptHookRoute from "./routes/scriptHook";
 import paymentRoute from "./routes/payment";
 import { errorHandler, notFoundHandler } from "./middleware/errors";
+import { requestId } from "./middleware/requestId";
+import { sameOriginGuard } from "./middleware/sameOrigin";
 import { optionalAuth } from "./utils/authMiddleware";
 
 const app = express();
 
 app.set("trust proxy", 1);
+app.use(requestId);
 app.use(helmet());
 app.use(
   cors({
@@ -26,7 +29,16 @@ app.use(
     credentials: true,
   })
 );
-app.use(morgan(config.nodeEnv === "production" ? "combined" : "dev"));
+morgan.token("request-id", (_req, res) =>
+  String((res as express.Response).locals.requestId ?? "-")
+);
+app.use(
+  morgan(
+    config.nodeEnv === "production"
+      ? ":method :url :status :res[content-length] - :response-time ms :request-id"
+      : "dev"
+  )
+);
 app.use(
   rateLimit({
     windowMs: 15 * 60 * 1000,
@@ -37,6 +49,7 @@ app.use(
 );
 app.use(cookieParser());
 app.use(express.json({ limit: "1mb" }));
+app.use(sameOriginGuard);
 
 app.use(optionalAuth);
 

@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express";
 import axios from "axios";
 import crypto from "crypto";
+import rateLimit from "express-rate-limit";
 import { PaymentProvider, PaymentTransactionStatus } from "@prisma/client";
 import { z } from "zod";
 import { config } from "../config/env";
@@ -18,6 +19,12 @@ import { requireAuth } from "../utils/authMiddleware";
 
 const router = Router();
 const FLW_BASE_URL = "https://api.flutterwave.com/v3";
+const paymentInitializeLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 const initializeSchema = z.object({
   plan: z.string().trim().min(1).max(40).regex(/^[a-z0-9_-]+$/i),
 });
@@ -33,6 +40,7 @@ function timingSafeStringEqual(left: string, right: string): boolean {
 
 router.post(
   "/payment/initialize",
+  paymentInitializeLimiter,
   requireAuth,
   asyncHandler(async (req: Request, res: Response) => {
     const parsed = initializeSchema.safeParse(req.body);

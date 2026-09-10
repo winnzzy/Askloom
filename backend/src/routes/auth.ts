@@ -25,6 +25,20 @@ const loginLimiter = rateLimit({
   },
 });
 
+const signupLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const emailActionLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 8,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 const signupSchema = z.object({
   email: z.string().email().transform((email) => email.toLowerCase()),
   password: z.string().min(8),
@@ -161,7 +175,7 @@ async function sendAuthResponse(res: Response, user: {
   });
 }
 
-router.post("/auth/signup", async (req: Request, res: Response) => {
+router.post("/auth/signup", signupLimiter, async (req: Request, res: Response) => {
   if (!config.jwtSecret) {
     return res.status(500).json({ error: "Authentication is not configured" });
   }
@@ -300,7 +314,7 @@ router.patch("/auth/me", requireAuth, async (req: Request, res: Response) => {
   }
 });
 
-router.post("/auth/password/forgot", async (req: Request, res: Response) => {
+router.post("/auth/password/forgot", emailActionLimiter, async (req: Request, res: Response) => {
   const parsed = forgotPasswordSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: "Invalid email address" });
@@ -327,7 +341,7 @@ router.post("/auth/password/forgot", async (req: Request, res: Response) => {
   }
 });
 
-router.post("/auth/password/reset", async (req: Request, res: Response) => {
+router.post("/auth/password/reset", emailActionLimiter, async (req: Request, res: Response) => {
   const parsed = resetPasswordSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: "Invalid reset details" });
@@ -359,7 +373,7 @@ router.post("/auth/password/reset", async (req: Request, res: Response) => {
   }
 });
 
-router.post("/auth/email/verification", requireAuth, async (req: Request, res: Response) => {
+router.post("/auth/email/verification", emailActionLimiter, requireAuth, async (req: Request, res: Response) => {
   const response: { ok: true; verificationToken?: string } = { ok: true };
   try {
     const user = await prisma.user.findUnique({ where: { id: req.user!.id } });

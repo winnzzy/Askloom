@@ -20,6 +20,7 @@ export function errorHandler(
       message: error.message,
       method: req.method,
       path: req.path,
+      requestId: res.locals.requestId,
       stack: process.env.NODE_ENV === "production" ? undefined : error.stack,
     })
   );

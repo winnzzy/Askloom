@@ -119,6 +119,16 @@ cd ../frontend
 npm run build
 ```
 
+## Admin Access
+
+After creating a normal account, promote it from the backend directory:
+
+```bash
+npm run admin:promote -- you@example.com
+```
+
+The promoted user will see the Admin link after logging in again.
+
 ## Current Gaps
 
 - Webhook retry runs in-process. For high volume, move it to a separate queue-backed worker.

@@ -14,12 +14,31 @@ export type ProductEventName =
   | "results_view_changed"
   | "pricing_viewed";
 
+export interface Opportunity {
+  phrase: string;
+  category: string;
+  subgroup: string;
+  score: number;
+  intent: "question" | "comparison" | "commercial" | "problem-solving" | "discovery";
+  badges: string[];
+  reasons: string[];
+}
+
+export interface ResearchResponse {
+  grouped: GroupedResults;
+  total: number;
+  opportunities: Opportunity[];
+  methodology: string;
+  language: ResearchLanguage;
+  market: ResearchMarket;
+}
+
 export async function fetchLocalizedSuggestions(
   seed: string,
   language: ResearchLanguage,
   market: ResearchMarket,
   token?: string | null
-): Promise<{ grouped: GroupedResults; total: number }> {
+): Promise<ResearchResponse> {
   const res = await fetch(`${API_BASE}/suggest`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...getAuthHeader(token) },

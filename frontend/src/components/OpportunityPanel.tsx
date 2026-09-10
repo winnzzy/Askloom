@@ -25,6 +25,7 @@ export default function OpportunityPanel({
   const [loadingPhrase, setLoadingPhrase] = useState<string | null>(null);
   const [savingPhrase, setSavingPhrase] = useState<string | null>(null);
   const [saved, setSaved] = useState<Record<string, boolean>>({});
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   async function generateHook(phrase: string) {
     setLoadingPhrase(phrase);
@@ -47,9 +48,12 @@ export default function OpportunityPanel({
     }
 
     setSavingPhrase(item.phrase);
+    setSaveError(null);
     try {
       await saveOpportunity({ token, seed, opportunity: item, language, market });
       setSaved((current) => ({ ...current, [item.phrase]: true }));
+    } catch (error: any) {
+      setSaveError(error?.message || "Could not save opportunity");
     } finally {
       setSavingPhrase(null);
     }
@@ -68,6 +72,7 @@ export default function OpportunityPanel({
           Scores currently use query structure, intent, specificity and first-party AskLoom momentum. They do not yet claim search volume or competition data.
         </p>
       </div>
+      {saveError && <p className="opportunity-save-error" role="alert">{saveError}</p>}
 
       <div className="opportunity-list">
         {opportunities.slice(0, 8).map((item, index) => (

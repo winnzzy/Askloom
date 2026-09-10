@@ -1,5 +1,4 @@
 import { Router, Request, Response } from "express";
-import axios from "axios";
 import crypto from "crypto";
 import rateLimit from "express-rate-limit";
 import { PaymentProvider, PaymentTransactionStatus } from "@prisma/client";
@@ -8,6 +7,8 @@ import { config } from "../config/env";
 import prisma from "../lib/prisma";
 import {
   activateVerifiedTransaction,
+  authorizeFlutterwaveCharge,
+  createFlutterwaveCardCharge,
   hasFlutterwaveConfig,
   processWebhookEvent,
   providerEventIdFor,
@@ -18,24 +19,45 @@ import { asyncHandler } from "../utils/asyncHandler";
 import { requireAuth } from "../utils/authMiddleware";
 
 const router = Router();
-const FLW_BASE_URL = "https://api.flutterwave.com/v3";
 const paymentInitializeLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 20,
   standardHeaders: true,
   legacyHeaders: false,
 });
+
 const initializeSchema = z.object({
   plan: z.string().trim().min(1).max(40).regex(/^[a-z0-9_-]+$/i),
+  card: z.object({
+    number: z.string().regex(/^\d{12,19}$/),
+    expiryMonth: z.string().regex(/^(0[1-9]|1[0-2])$/),
+    expiryYear: z.string().regex(/^\d{2,4}$/),
+    cvv: z.string().regex(/^\d{3,4}$/),
+  }),
 });
 
-function timingSafeStringEqual(left: string, right: string): boolean {
-  const leftBuffer = Buffer.from(left);
-  const rightBuffer = Buffer.from(right);
-  return (
-    leftBuffer.length === rightBuffer.length &&
-    crypto.timingSafeEqual(leftBuffer, rightBuffer)
-  );
+const authorizationSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("pin"), value: z.string().regex(/^\d{4,6}$/) }),
+  z.object({ type: z.literal("otp"), value: z.string().trim().min(4).max(12) }),
+]);
+
+function nextActionFrom(data: any) {
+  return data?.next_action?.type ?? null;
+}
+
+function redirectUrlFrom(data: any): string | null {
+  const value = data?.next_action?.redirect_url?.url;
+  return typeof value === "string" && value.startsWith("https://") ? value : null;
+}
+
+function isValidWebhookSignature(rawBody: Buffer, signature: string, secretHash: string): boolean {
+  const digest = crypto
+    .createHmac("sha256", secretHash)
+    .update(rawBody)
+    .digest("base64");
+  const left = Buffer.from(digest);
+  const right = Buffer.from(signature);
+  return left.length === right.length && crypto.timingSafeEqual(left, right);
 }
 
 router.post(
@@ -44,27 +66,20 @@ router.post(
   requireAuth,
   asyncHandler(async (req: Request, res: Response) => {
     const parsed = initializeSchema.safeParse(req.body);
-
     if (!parsed.success) {
-      return res.status(400).json({ error: "Invalid plan" });
+      return res.status(400).json({ error: "Invalid payment details" });
     }
     if (!hasFlutterwaveConfig()) {
-      return res.status(500).json({ error: "Flutterwave is not configured" });
+      return res.status(500).json({ error: "Flutterwave v4 is not configured" });
     }
 
     const plan = await prisma.plan.findFirst({
       where: { code: parsed.data.plan, isActive: true },
     });
-    if (!plan) {
-      return res.status(404).json({ error: "Plan not found" });
-    }
+    if (!plan) return res.status(404).json({ error: "Plan not found" });
 
-    const user = await prisma.user.findUnique({
-      where: { id: req.user!.id },
-    });
-    if (!user) {
-      return res.status(401).json({ error: "Authentication required" });
-    }
+    const user = await prisma.user.findUnique({ where: { id: req.user!.id } });
+    if (!user) return res.status(401).json({ error: "Authentication required" });
 
     const txRef = `askloom-${plan.code}-${Date.now()}-${crypto
       .randomBytes(4)
@@ -83,138 +98,197 @@ router.post(
     });
 
     try {
-      const response = await axios.post(
-        `${FLW_BASE_URL}/payments`,
-        {
-          tx_ref: txRef,
-          amount: plan.price.toString(),
-          currency: plan.currency,
-          redirect_url: config.flutterwave.redirectUrl,
-          customer: {
-            email: user.email,
-            name:
-              [user.firstName, user.lastName].filter(Boolean).join(" ") ||
-              user.email,
-          },
-          customizations: {
-            title: "AskLoom",
-            description: `${plan.name} subscription`,
-          },
+      const data = await createFlutterwaveCardCharge({
+        reference: txRef,
+        amount: plan.price.toString(),
+        currency: plan.currency,
+        redirectUrl: config.flutterwave.redirectUrl!,
+        customer: {
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
         },
-        {
-          headers: {
-            Authorization: `Bearer ${config.flutterwave.secretKey}`,
-            "Content-Type": "application/json",
-          },
-          timeout: 15000,
-        }
-      );
+        card: parsed.data.card,
+      });
 
-      const checkoutUrl = response.data?.data?.link;
-      if (!checkoutUrl) {
-        throw new Error("Flutterwave did not return a checkout URL");
+      const chargeId = data?.id ? String(data.id) : null;
+      if (!chargeId) {
+        throw new Error("Flutterwave did not return a charge id");
       }
 
+      const checkoutUrl = redirectUrlFrom(data);
       await prisma.paymentTransaction.update({
         where: { id: transaction.id },
         data: {
+          providerTransactionId: chargeId,
           checkoutUrl,
-          rawResponse: toJson(response.data),
+          rawResponse: toJson(data),
         },
       });
 
-      res.json({ checkoutUrl, tx_ref: txRef });
-    } catch {
-      await prisma.paymentTransaction.update({
-        where: { id: transaction.id },
-        data: { status: PaymentTransactionStatus.FAILED },
-      });
+      if (data?.status === "succeeded") {
+        const result = await activateVerifiedTransaction(data);
+        return res.json({
+          chargeId,
+          txRef,
+          status: "succeeded",
+          verified: result.verified,
+          plan: result.verified ? result.plan : undefined,
+        });
+      }
 
-      res.status(502).json({ error: "Failed to initialize payment" });
+      return res.json({
+        chargeId,
+        txRef,
+        status: data?.status ?? "pending",
+        nextAction: nextActionFrom(data),
+        checkoutUrl,
+      });
+    } catch {
+      // A timeout can leave the provider charge in an unknown state, so keep
+      // the local transaction pending for later verification/reconciliation.
+      return res.status(502).json({ error: "Failed to initialize payment" });
     }
   })
 );
 
-router.get("/payment/verify/:transactionId", asyncHandler(async (req: Request, res: Response) => {
-  const { transactionId } = req.params;
-  if (!/^\d+$/.test(transactionId)) {
-    return res.status(400).json({ error: "Invalid transaction id" });
-  }
-
-  if (!config.flutterwave.secretKey) {
-    return res.status(500).json({ error: "Flutterwave is not configured" });
-  }
-
-  try {
-    const data = await verifyFlutterwaveTransaction(transactionId);
-    const result = await activateVerifiedTransaction(data);
-
-    if (!result.verified) {
-      return res.status(400).json({ verified: false });
+router.post(
+  "/payment/authorize/:chargeId",
+  requireAuth,
+  asyncHandler(async (req: Request, res: Response) => {
+    const parsed = authorizationSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: "Invalid authorization details" });
     }
 
-    res.json({
-      verified: true,
-      plan: result.plan,
-      currentPeriodEnd: result.currentPeriodEnd,
+    const chargeId = req.params.chargeId;
+    if (!/^chg_[A-Za-z0-9]+$/.test(chargeId)) {
+      return res.status(400).json({ error: "Invalid charge id" });
+    }
+
+    const transaction = await prisma.paymentTransaction.findFirst({
+      where: {
+        providerTransactionId: chargeId,
+        userId: req.user!.id,
+        provider: PaymentProvider.FLUTTERWAVE,
+      },
     });
-  } catch {
-    res.status(502).json({ error: "Verification failed" });
-  }
-}));
-
-router.post("/payment/webhook", asyncHandler(async (req: Request, res: Response) => {
-  const signature = req.headers["verif-hash"];
-
-  if (!config.flutterwave.secretHash) {
-    return res.status(503).end();
-  }
-
-  if (
-    typeof signature !== "string" ||
-    !timingSafeStringEqual(signature, config.flutterwave.secretHash)
-  ) {
-    return res.status(401).end();
-  }
-
-  const event = req.body;
-  const providerEventId = providerEventIdFor(event);
-
-  try {
-    const existing = providerEventId
-      ? await prisma.webhookEvent.findUnique({
-          where: {
-            provider_providerEventId: {
-              provider: PaymentProvider.FLUTTERWAVE,
-              providerEventId,
-            },
-          },
-        })
-      : null;
-
-    if (existing) {
-      if (existing.processed) {
-        return res.status(200).end();
-      }
+    if (!transaction) {
+      return res.status(404).json({ error: "Payment transaction not found" });
     }
 
-    const webhookEvent =
-      existing ??
-      (await prisma.webhookEvent.create({
-        data: {
-          provider: PaymentProvider.FLUTTERWAVE,
-          providerEventId,
-          eventType: event?.event ?? "unknown",
-          payload: toJson(event),
-        },
-      }));
+    const data = await authorizeFlutterwaveCharge(
+      chargeId,
+      parsed.data.type === "pin"
+        ? { type: "pin", pin: parsed.data.value }
+        : { type: "otp", otp: parsed.data.value }
+    );
 
-    await processWebhookEvent(webhookEvent.id);
+    await prisma.paymentTransaction.update({
+      where: { id: transaction.id },
+      data: { rawResponse: toJson(data) },
+    });
 
-    res.status(200).end();
-  } catch {
-    res.status(200).end();
-  }
-}));
+    if (data?.status === "succeeded") {
+      const result = await activateVerifiedTransaction(data);
+      return res.json({
+        chargeId,
+        status: "succeeded",
+        verified: result.verified,
+        plan: result.verified ? result.plan : undefined,
+      });
+    }
+
+    return res.json({
+      chargeId,
+      status: data?.status ?? "pending",
+      nextAction: nextActionFrom(data),
+      checkoutUrl: redirectUrlFrom(data),
+    });
+  })
+);
+
+router.get(
+  "/payment/verify/:transactionId",
+  asyncHandler(async (req: Request, res: Response) => {
+    const { transactionId } = req.params;
+    if (!/^chg_[A-Za-z0-9]+$/.test(transactionId)) {
+      return res.status(400).json({ error: "Invalid charge id" });
+    }
+
+    if (!config.flutterwave.clientId || !config.flutterwave.clientSecret) {
+      return res.status(500).json({ error: "Flutterwave v4 is not configured" });
+    }
+
+    try {
+      const data = await verifyFlutterwaveTransaction(transactionId);
+      const result = await activateVerifiedTransaction(data);
+      if (!result.verified) {
+        return res.status(400).json({ verified: false });
+      }
+
+      return res.json({
+        verified: true,
+        plan: result.plan,
+        currentPeriodEnd: result.currentPeriodEnd,
+      });
+    } catch {
+      return res.status(502).json({ error: "Verification failed" });
+    }
+  })
+);
+
+router.post(
+  "/payment/webhook",
+  asyncHandler(async (req: Request, res: Response) => {
+    const signature = req.headers["flutterwave-signature"];
+    const rawBody = (req as Request & { rawBody?: Buffer }).rawBody;
+
+    if (!config.flutterwave.secretHash) return res.status(503).end();
+    if (
+      typeof signature !== "string" ||
+      !rawBody ||
+      !isValidWebhookSignature(rawBody, signature, config.flutterwave.secretHash)
+    ) {
+      return res.status(401).end();
+    }
+
+    const event = req.body;
+    const providerEventId = providerEventIdFor(event);
+
+    try {
+      const existing = providerEventId
+        ? await prisma.webhookEvent.findUnique({
+            where: {
+              provider_providerEventId: {
+                provider: PaymentProvider.FLUTTERWAVE,
+                providerEventId,
+              },
+            },
+          })
+        : null;
+
+      if (existing?.processed) return res.status(200).end();
+
+      const webhookEvent =
+        existing ??
+        (await prisma.webhookEvent.create({
+          data: {
+            provider: PaymentProvider.FLUTTERWAVE,
+            providerEventId,
+            eventType: event?.type ?? "unknown",
+            payload: toJson(event),
+          },
+        }));
+
+      await processWebhookEvent(webhookEvent.id);
+      return res.status(200).end();
+    } catch {
+      // Acknowledge valid Flutterwave webhooks; failed events remain available
+      // for the retry worker/admin retry flow.
+      return res.status(200).end();
+    }
+  })
+);
 
 export default router;

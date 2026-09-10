@@ -27,6 +27,10 @@ const opportunitySchema = z.object({
   reasons: z.array(z.string().trim().min(1).max(160)).max(5).default([]),
 });
 
+const assignmentSchema = z.object({
+  projectId: z.string().uuid().nullable(),
+});
+
 function toJson(value: unknown): Prisma.InputJsonValue {
   return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 }
@@ -113,6 +117,41 @@ router.post("/account/opportunities", asyncHandler(async (req: Request, res: Res
   }
 
   return res.status(201).json({ opportunity, duplicate: false });
+}));
+
+router.patch("/account/opportunities/:id/project", asyncHandler(async (req: Request, res: Response) => {
+  const parsed = assignmentSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid project assignment" });
+
+  const opportunity = await prisma.savedOpportunity.findFirst({
+    where: { id: req.params.id, userId: req.user!.id },
+    select: { id: true, projectId: true },
+  });
+  if (!opportunity) return res.status(404).json({ error: "Saved opportunity not found" });
+
+  if (parsed.data.projectId) {
+    const project = await prisma.project.findFirst({
+      where: { id: parsed.data.projectId, userId: req.user!.id },
+      select: { id: true },
+    });
+    if (!project) return res.status(404).json({ error: "Project not found" });
+  }
+
+  const updated = await prisma.savedOpportunity.update({
+    where: { id: opportunity.id },
+    data: { projectId: parsed.data.projectId },
+    include: { project: { select: { id: true, name: true } } },
+  });
+
+  const touchedProjectIds = [opportunity.projectId, parsed.data.projectId].filter((id): id is string => Boolean(id));
+  if (touchedProjectIds.length > 0) {
+    await prisma.project.updateMany({
+      where: { id: { in: touchedProjectIds }, userId: req.user!.id },
+      data: { updatedAt: new Date() },
+    });
+  }
+
+  return res.json({ opportunity: updated });
 }));
 
 router.delete("/account/opportunities/:id", asyncHandler(async (req: Request, res: Response) => {

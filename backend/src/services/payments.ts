@@ -24,12 +24,7 @@ function flutterwaveBaseUrl(): string {
 }
 
 export function hasFlutterwaveConfig(): boolean {
-  return Boolean(
-    config.flutterwave.clientId &&
-      config.flutterwave.clientSecret &&
-      config.flutterwave.encryptionKey &&
-      config.flutterwave.redirectUrl
-  );
+  return Boolean(config.flutterwave.clientId && config.flutterwave.clientSecret);
 }
 
 export function toJson(value: unknown): Prisma.InputJsonValue {
@@ -66,9 +61,7 @@ export async function getFlutterwaveAccessToken(): Promise<string> {
   });
 
   const token = response.data?.access_token;
-  if (!token) {
-    throw new Error("Flutterwave did not return an access token");
-  }
+  if (!token) throw new Error("Flutterwave did not return an access token");
 
   const expiresIn = Number(response.data?.expires_in) || 600;
   cachedAccessToken = {
@@ -79,144 +72,12 @@ export async function getFlutterwaveAccessToken(): Promise<string> {
   return token;
 }
 
-async function flutterwaveHeaders(withIdempotency = false) {
-  const token = await getFlutterwaveAccessToken();
-  const headers: Record<string, string> = {
-    Authorization: `Bearer ${token}`,
+async function flutterwaveHeaders() {
+  return {
+    Authorization: `Bearer ${await getFlutterwaveAccessToken()}`,
     "Content-Type": "application/json",
     "X-Trace-Id": `askloom-${crypto.randomUUID()}`,
   };
-
-  if (withIdempotency) {
-    headers["X-Idempotency-Key"] = `askloom-${crypto.randomUUID()}`;
-  }
-
-  return headers;
-}
-
-function encryptionKey(): Buffer {
-  if (!config.flutterwave.encryptionKey) {
-    throw new Error("Flutterwave encryption key is not configured");
-  }
-  const key = Buffer.from(config.flutterwave.encryptionKey, "base64");
-  if (key.length !== 32) {
-    throw new Error("Flutterwave encryption key must decode to 32 bytes");
-  }
-  return key;
-}
-
-function generateNonce(): string {
-  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-  const bytes = crypto.randomBytes(12);
-  let nonce = "";
-  for (const byte of bytes) nonce += alphabet[byte % alphabet.length];
-  return nonce;
-}
-
-export function encryptFlutterwaveValue(value: string, nonce: string): string {
-  const cipher = crypto.createCipheriv(
-    "aes-256-gcm",
-    encryptionKey(),
-    Buffer.from(nonce, "utf8")
-  );
-  const encrypted = Buffer.concat([
-    cipher.update(value, "utf8"),
-    cipher.final(),
-    cipher.getAuthTag(),
-  ]);
-  return encrypted.toString("base64");
-}
-
-export interface FlutterwaveCardInput {
-  number: string;
-  expiryMonth: string;
-  expiryYear: string;
-  cvv: string;
-}
-
-export async function createFlutterwaveCardCharge(params: {
-  reference: string;
-  amount: string;
-  currency: string;
-  redirectUrl: string;
-  customer: { email: string; firstName?: string | null; lastName?: string | null };
-  card: FlutterwaveCardInput;
-}) {
-  const nonce = generateNonce();
-  const payload = {
-    amount: Number(params.amount),
-    currency: params.currency,
-    reference: params.reference,
-    redirect_url: params.redirectUrl,
-    customer: {
-      email: params.customer.email,
-      name: {
-        first: params.customer.firstName || undefined,
-        last: params.customer.lastName || undefined,
-      },
-    },
-    payment_method: {
-      type: "card",
-      card: {
-        nonce,
-        encrypted_card_number: encryptFlutterwaveValue(params.card.number, nonce),
-        encrypted_expiry_month: encryptFlutterwaveValue(params.card.expiryMonth, nonce),
-        encrypted_expiry_year: encryptFlutterwaveValue(params.card.expiryYear, nonce),
-        encrypted_cvv: encryptFlutterwaveValue(params.card.cvv, nonce),
-      },
-    },
-  };
-
-  const response = await axios.post(
-    `${flutterwaveBaseUrl()}/orchestration/direct-charges`,
-    payload,
-    {
-      headers: await flutterwaveHeaders(true),
-      timeout: 20_000,
-    }
-  );
-
-  return response.data?.data;
-}
-
-export async function authorizeFlutterwaveCharge(
-  chargeId: string,
-  authorization:
-    | { type: "pin"; pin: string }
-    | { type: "otp"; otp: string }
-) {
-  let body: Record<string, unknown>;
-
-  if (authorization.type === "pin") {
-    const nonce = generateNonce();
-    body = {
-      authorization: {
-        type: "pin",
-        pin: {
-          nonce,
-          encrypted_pin: encryptFlutterwaveValue(authorization.pin, nonce),
-        },
-      },
-    };
-  } else {
-    body = {
-      authorization: {
-        type: "otp",
-        otp: { code: authorization.otp },
-      },
-    };
-  }
-
-  const response = await axios.put(
-    `${flutterwaveBaseUrl()}/charges/${encodeURIComponent(chargeId)}`,
-    body,
-    {
-      headers: await flutterwaveHeaders(true),
-      timeout: 20_000,
-    }
-  );
-
-  return response.data?.data;
 }
 
 export async function verifyFlutterwaveTransaction(chargeId: string) {
@@ -233,9 +94,7 @@ export async function verifyFlutterwaveTransaction(chargeId: string) {
 
 export async function activateVerifiedTransaction(data: any) {
   const txRef = data?.reference;
-  if (!txRef) {
-    return { verified: false as const, reason: "missing_reference" };
-  }
+  if (!txRef) return { verified: false as const, reason: "missing_reference" };
 
   const transaction = await prisma.paymentTransaction.findUnique({
     where: { txRef },
@@ -263,7 +122,6 @@ export async function activateVerifiedTransaction(data: any) {
         },
       });
     }
-
     return { verified: false as const, reason: "verification_mismatch" };
   }
 
@@ -276,7 +134,6 @@ export async function activateVerifiedTransaction(data: any) {
       },
       orderBy: { createdAt: "desc" },
     });
-
     return {
       verified: true as const,
       plan: transaction.plan.code,
@@ -304,10 +161,7 @@ export async function activateVerifiedTransaction(data: any) {
     if (claimed.count === 0) return false;
 
     await tx.subscription.updateMany({
-      where: {
-        userId: transaction.userId,
-        status: SubscriptionStatus.ACTIVE,
-      },
+      where: { userId: transaction.userId, status: SubscriptionStatus.ACTIVE },
       data: { status: SubscriptionStatus.EXPIRED },
     });
 
@@ -322,7 +176,6 @@ export async function activateVerifiedTransaction(data: any) {
         currentPeriodEnd,
       },
     });
-
     return true;
   });
 
@@ -335,7 +188,6 @@ export async function activateVerifiedTransaction(data: any) {
       },
       orderBy: { createdAt: "desc" },
     });
-
     return {
       verified: true as const,
       plan: transaction.plan.code,
@@ -343,11 +195,7 @@ export async function activateVerifiedTransaction(data: any) {
     };
   }
 
-  return {
-    verified: true as const,
-    plan: transaction.plan.code,
-    currentPeriodEnd,
-  };
+  return { verified: true as const, plan: transaction.plan.code, currentPeriodEnd };
 }
 
 export async function processWebhookEvent(webhookEventId: string) {
@@ -368,8 +216,8 @@ export async function processWebhookEvent(webhookEventId: string) {
     return { processed: true, error: null };
   }
 
-  const providerTransactionId = event?.data?.id;
-  if (!providerTransactionId || !config.flutterwave.clientId || !config.flutterwave.clientSecret) {
+  const chargeId = event?.data?.id;
+  if (!chargeId || !hasFlutterwaveConfig()) {
     const error = "Missing charge id or Flutterwave configuration";
     await prisma.webhookEvent.update({
       where: { id: webhookEvent.id },
@@ -378,7 +226,7 @@ export async function processWebhookEvent(webhookEventId: string) {
     return { processed: false, error };
   }
 
-  const data = await verifyFlutterwaveTransaction(String(providerTransactionId));
+  const data = await verifyFlutterwaveTransaction(String(chargeId));
   const result = await activateVerifiedTransaction(data);
   const error = result.verified ? null : "Transaction verification failed";
 
@@ -403,7 +251,6 @@ export async function retryPendingWebhookEvents(limit = 25) {
 
   let processed = 0;
   const errors: string[] = [];
-
   for (const event of events) {
     try {
       const result = await processWebhookEvent(event.id);
@@ -413,6 +260,5 @@ export async function retryPendingWebhookEvents(limit = 25) {
       errors.push(`${event.id}: ${error instanceof Error ? error.message : "Unknown error"}`);
     }
   }
-
   return { attempted: events.length, processed, errors };
 }

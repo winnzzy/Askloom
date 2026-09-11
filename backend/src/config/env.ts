@@ -9,6 +9,7 @@ const envSchema = z.object({
     .default("development"),
   PORT: z.coerce.number().int().positive().default(4000),
   FRONTEND_URL: z.string().url().optional(),
+  MARKETING_URL: z.string().url().optional(),
   DATABASE_URL: z.string().min(1).optional(),
   JWT_SECRET: z.string().min(1).optional(),
   FLW_CLIENT_ID: z.string().min(1).optional(),
@@ -64,6 +65,7 @@ export const config = {
   nodeEnv: env.NODE_ENV,
   port: env.PORT,
   frontendUrl: env.FRONTEND_URL ?? "http://localhost:5173",
+  marketingUrl: env.MARKETING_URL,
   databaseUrl: env.DATABASE_URL,
   jwtSecret: env.JWT_SECRET,
   flutterwave: {

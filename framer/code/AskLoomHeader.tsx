@@ -1,13 +1,17 @@
 import * as React from "react"
 import { addPropertyControls, ControlType } from "framer"
 
+/**
+ * @framerSupportedLayoutWidth any-prefer-fixed
+ * @framerSupportedLayoutHeight auto
+ */
 export default function AskLoomHeader(props: any) {
     const { appUrl, pricingHref, methodologyHref, trendsHref } = props
     return (
         <div style={{width:"100%",display:"flex",justifyContent:"center",padding:"18px 20px",boxSizing:"border-box"}}>
-            <div style={{width:"100%",maxWidth:1240,height:66,border:"1px solid rgba(255,255,255,.10)",background:"rgba(14,18,32,.76)",backdropFilter:"blur(18px)",WebkitBackdropFilter:"blur(18px)",borderRadius:18,display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 14px 0 22px",boxSizing:"border-box",boxShadow:"0 14px 50px rgba(4,7,18,.20)"}}>
+            <div style={{width:"100%",maxWidth:1240,minHeight:66,border:"1px solid rgba(255,255,255,.10)",background:"rgba(14,18,32,.76)",backdropFilter:"blur(18px)",WebkitBackdropFilter:"blur(18px)",borderRadius:18,display:"flex",alignItems:"center",justifyContent:"space-between",gap:16,flexWrap:"wrap",padding:"10px 14px 10px 22px",boxSizing:"border-box",boxShadow:"0 14px 50px rgba(4,7,18,.20)"}}>
                 <a href="/" style={{textDecoration:"none",color:"#F6F0E4",fontFamily:"Inter, sans-serif",fontWeight:760,fontSize:23,letterSpacing:"-.05em"}}>Ask<span style={{color:"#B89CFF"}}>Loom</span></a>
-                <div style={{display:"flex",alignItems:"center",gap:28,fontFamily:"Inter, sans-serif",fontSize:13,fontWeight:620}} className="askloom-desktop-nav">
+                <div style={{display:"flex",alignItems:"center",gap:18,flexWrap:"wrap",fontFamily:"Inter, sans-serif",fontSize:13,fontWeight:620}} className="askloom-desktop-nav">
                     <a href={trendsHref} style={link}>Trends</a><a href={methodologyHref} style={link}>Methodology</a><a href={pricingHref} style={link}>Pricing</a>
                 </div>
                 <div style={{display:"flex",alignItems:"center",gap:9}}>

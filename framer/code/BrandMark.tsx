@@ -9,6 +9,10 @@ type Props = {
     rounded: number
 }
 
+/**
+ * @framerSupportedLayoutWidth fixed
+ * @framerSupportedLayoutHeight fixed
+ */
 export default function BrandMark({
     size = 72,
     background = "#0D1224",

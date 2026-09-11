@@ -1,6 +1,10 @@
 import * as React from "react"
 import { addPropertyControls, ControlType } from "framer"
 
+/**
+ * @framerSupportedLayoutWidth any-prefer-fixed
+ * @framerSupportedLayoutHeight auto
+ */
 export default function PrivacyThresholdCard({ benchmarkItems = 5, benchmarkCreators = 3, calibrationItems = 40, calibrationCreators = 8 }) {
   return <section style={wrap}>
     <div style={glow} />

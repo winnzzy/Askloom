@@ -3,18 +3,25 @@
 This helper installs/syncs the AskLoom Code Components into a Framer project using Framer's Code File API.
 
 ## Setup
-1. Create a fresh Framer plugin scaffold locally with `npm create framer-plugin@latest`.
-2. Replace the generated `src/App.tsx` with this folder's `src/App.tsx`.
-3. Replace the generated `framer.json` with this folder's `framer.json`.
-4. Ensure the scaffold uses the current `@framer/plugin` package. Framer renamed the package from `framer-plugin` to `@framer/plugin` in v4.
-5. Run `npm run dev`.
-6. In Framer, enable Plugin Developer Tools and choose **Open Development Plugin**.
-7. Click **Install 11 components**.
+1. Run `npm ci` from this folder.
+2. Run `npm run typecheck`.
+3. Run `npm run build`.
+4. Run `npm run dev`.
+5. In Framer, enable Plugin Developer Tools and choose **Open Development Plugin**.
+6. Click **Install AskLoom Components**.
+
+This folder is intentionally self-contained so the AskLoom repository can validate the bootstrap plugin without creating a second scaffold elsewhere. It uses the current `@framer/plugin` package, not the deprecated `framer-plugin` package.
 
 The plugin pulls the current component source from:
 `https://raw.githubusercontent.com/winnzzy/Askloom/master/framer/code/`
 
-It will update existing files with matching names rather than creating duplicates.
+The component inventory lives in `src/componentManifest.ts`. The plugin will update existing files with matching names rather than creating duplicates. If a file already matches the GitHub source exactly, the plugin skips it to avoid unnecessary Framer code-file versions.
+
+The current development defaults are:
+- App: `https://askloom-frontend.onrender.com`
+- API: `https://askloom-backend.onrender.com/api`
+
+When production custom domains exist, update public component defaults to `https://app.askloom.com` and `https://api.askloom.com`. Do not point production pages to those domains until DNS and hosting are actually configured.
 
 ## Installed components
 - AskLoomHeader.tsx

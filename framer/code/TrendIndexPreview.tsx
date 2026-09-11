@@ -42,18 +42,19 @@ export default function TrendIndexPreview(props: {
     }, [props.apiBase, props.language, props.market, props.limit, isCanvas])
 
     const demo = [
-        { topic: "ai voice agents", trendIndex: 84, direction: "rising", recentSearches: 18, growthPercent: 80 },
-        { topic: "faceless youtube", trendIndex: 72, direction: "steady", recentSearches: 13, growthPercent: 12 },
-        { topic: "small business automation", trendIndex: 67, direction: "new", recentSearches: 10, growthPercent: null },
+        { topic: "example: ai voice agents", trendIndex: 84, direction: "demo", recentSearches: "Demo", growthPercent: null },
+        { topic: "example: faceless youtube", trendIndex: 72, direction: "demo", recentSearches: "Demo", growthPercent: null },
+        { topic: "example: small business automation", trendIndex: 67, direction: "demo", recentSearches: "Demo", growthPercent: null },
     ]
     const rows = isCanvas ? demo : state.trends
 
     return (
         <section style={{ width: "100%", boxSizing: "border-box", padding: 24, borderRadius: 22, background: props.surface, color: props.textColor, border: "1px solid rgba(255,255,255,0.1)", boxShadow: "0 30px 90px rgba(0,0,0,0.24)", fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 18, alignItems: "end", marginBottom: 20 }}>
-                <div>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 18, alignItems: "end", marginBottom: 20, flexWrap: "wrap" }}>
+                <div style={{ minWidth: 0 }}>
                     <div style={{ color: props.accent, fontSize: 11, fontWeight: 800, letterSpacing: ".12em" }}>{props.eyebrow}</div>
                     <h3 style={{ margin: "7px 0 0", fontSize: 28, lineHeight: 1.05, fontWeight: 650 }}>{props.title}</h3>
+                    {isCanvas && <div style={{ color: props.muted, fontSize: 10, marginTop: 8 }}>Canvas demo data only</div>}
                 </div>
                 <div style={{ color: props.muted, fontSize: 11, textAlign: "right" }}>{props.language.toUpperCase()} · {props.market}<br/>14-day window</div>
             </div>
@@ -70,7 +71,7 @@ export default function TrendIndexPreview(props: {
                             <div style={{ fontSize: 15, fontWeight: 760, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{item.topic}</div>
                             <div style={{ marginTop: 4, color: props.muted, fontSize: 11 }}>{item.recentSearches} recent AskLoom searches · {item.direction}</div>
                         </div>
-                        <div style={{ textAlign: "right", fontSize: 12, fontWeight: 800, color: item.growthPercent == null ? props.muted : item.growthPercent >= 0 ? "#54D6B0" : "#FF8176" }}>{item.growthPercent == null ? "NEW" : `${item.growthPercent > 0 ? "+" : ""}${item.growthPercent}%`}</div>
+                        <div style={{ textAlign: "right", fontSize: 12, fontWeight: 800, color: item.growthPercent == null ? props.muted : item.growthPercent >= 0 ? "#54D6B0" : "#FF8176" }}>{item.growthPercent == null ? (isCanvas ? "DEMO" : "NEW") : `${item.growthPercent > 0 ? "+" : ""}${item.growthPercent}%`}</div>
                     </div>
                 ))}
             </div>

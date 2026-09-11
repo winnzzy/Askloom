@@ -10,6 +10,10 @@ const steps = [
   ["06", "Learn", "Aggregate learning after privacy thresholds"],
 ]
 
+/**
+ * @framerSupportedLayoutWidth any-prefer-fixed
+ * @framerSupportedLayoutHeight auto
+ */
 export default function ClosedLoopWorkflow(props: any) {
   const accent = props.accent || "#7357FF"
   return (

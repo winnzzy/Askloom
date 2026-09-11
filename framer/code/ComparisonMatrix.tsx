@@ -11,6 +11,10 @@ const defaultRows: Row[] = [
   { stage: "Learn", askloom: "Privacy-thresholded outcome calibration", competitor: "Different product emphasis" },
 ]
 
+/**
+ * @framerSupportedLayoutWidth any-prefer-fixed
+ * @framerSupportedLayoutHeight auto
+ */
 export default function ComparisonMatrix({ title = "Research is only the first step.", subtitle = "Compare workflows, not marketing checklists.", competitorName = "AnswerThePublic" }) {
   return <section style={wrap}>
     <div style={header}>

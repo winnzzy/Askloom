@@ -33,6 +33,7 @@ export default function ResearchLauncher(props: {
             style={{
                 width: "100%",
                 display: "flex",
+                flexWrap: "wrap",
                 gap: 10,
                 padding: 8,
                 borderRadius: 18,
@@ -49,7 +50,7 @@ export default function ResearchLauncher(props: {
                 placeholder={props.placeholder}
                 style={{
                     flex: 1,
-                    minWidth: 0,
+                    minWidth: 180,
                     border: 0,
                     outline: 0,
                     background: "transparent",
@@ -66,6 +67,7 @@ export default function ResearchLauncher(props: {
                     border: 0,
                     borderRadius: 12,
                     padding: "0 22px",
+                    flex: "0 0 auto",
                     minHeight: 50,
                     cursor: isCanvas ? "default" : "pointer",
                     background: props.accent,
@@ -85,7 +87,7 @@ export default function ResearchLauncher(props: {
 ResearchLauncher.defaultProps = {
     appUrl: "https://askloom-frontend.onrender.com/",
     placeholder: "Search any topic, product, industry or question",
-    buttonLabel: "Start researching →",
+    buttonLabel: "Start researching",
     defaultTopic: "",
     surface: "rgba(255,255,255,0.08)",
     textColor: "#FAF8F2",

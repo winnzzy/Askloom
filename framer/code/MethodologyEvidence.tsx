@@ -10,6 +10,10 @@ const defaults: Item[] = [
   { label: "Outcome learning", value: "Privacy-thresholded", description: "Published outcomes affect scores only after strict sample thresholds are crossed.", tone: "#F0A878" },
 ]
 
+/**
+ * @framerSupportedLayoutWidth any-prefer-fixed
+ * @framerSupportedLayoutHeight auto
+ */
 export default function MethodologyEvidence(props: any) {
   const items = defaults.map((item, index) => ({
     ...item,

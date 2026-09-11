@@ -53,6 +53,13 @@ Create:
 Recommended: use `/framer/bootstrap-plugin`.
 Fallback: Assets → Code → Create Code File and paste files from `/framer/code`.
 
+From `/framer/bootstrap-plugin`:
+1. Run `npm ci`.
+2. Run `npm run typecheck`.
+3. Run `npm run build`.
+4. Run `npm run dev`.
+5. Open the development plugin in Framer and click `Install AskLoom Components`.
+
 Framer's Code Components render on canvas, preview and published site and should stay React 18 compatible.
 
 After install, type-check every Code File in Framer before production use.

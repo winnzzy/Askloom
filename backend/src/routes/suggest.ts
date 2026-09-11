@@ -13,6 +13,7 @@ import {
   SUPPORTED_MARKETS,
 } from "../services/intelligence";
 import { scoreOpportunities } from "../services/opportunity";
+import { getOutcomeCalibration, OUTCOME_CALIBRATION_THRESHOLDS } from "../services/outcomeCalibration";
 import prisma from "../lib/prisma";
 import { asyncHandler } from "../utils/asyncHandler";
 
@@ -38,9 +39,7 @@ function toJson(value: unknown): Prisma.InputJsonValue {
 
 async function persistSearchHistory(userId: string | undefined, seed: string, sources: string[], grouped: unknown, total: number) {
   if (!userId) return;
-  await prisma.searchHistory.create({
-    data: { userId, seed, sources: toJson(sources), grouped: toJson(grouped), total },
-  });
+  await prisma.searchHistory.create({ data: { userId, seed, sources: toJson(sources), grouped: toJson(grouped), total } });
 }
 
 function flattenGrouped(grouped: unknown): ClusteredResult[] {
@@ -50,10 +49,7 @@ function flattenGrouped(grouped: unknown): ClusteredResult[] {
     if (!rawSubgroups || typeof rawSubgroups !== "object") continue;
     for (const [subgroup, rawPhrases] of Object.entries(rawSubgroups as Record<string, unknown>)) {
       if (!Array.isArray(rawPhrases)) continue;
-      for (const phrase of rawPhrases) {
-        if (typeof phrase !== "string") continue;
-        out.push({ category: category as ClusteredResult["category"], subgroup, phrase });
-      }
+      for (const phrase of rawPhrases) if (typeof phrase === "string") out.push({ category: category as ClusteredResult["category"], subgroup, phrase });
     }
   }
   return out;
@@ -68,30 +64,26 @@ router.post("/suggest", asyncHandler(async (req: Request, res: Response) => {
   const activePlan = userId ? await getActivePlanForUser(userId) : null;
   const limit = activePlan ? activePlan.dailySearchLimit : FREE_DAILY_LIMIT;
   const anonymousKey = req.ip || "anonymous";
-
   const allowed = await checkAndIncrementUsage({ userId, anonymousKey, field: "searchCount", limit });
-  if (!allowed) {
-    return res.status(429).json({
-      error: `Search limit reached (${limit} searches/day). Upgrade to Creator for unlimited searches.`,
-    });
-  }
+  if (!allowed) return res.status(429).json({ error: `Search limit reached (${limit} searches/day). Upgrade to Creator for unlimited searches.` });
 
-  const topicMomentum = await getTopicMomentum({ seed, language, market }).catch(() => 0);
+  const [topicMomentum, outcomeCalibration] = await Promise.all([
+    getTopicMomentum({ seed, language, market }).catch(() => 0),
+    getOutcomeCalibration({ language, market }).catch(() => ({})),
+  ]);
+  const calibrationActive = Object.keys(outcomeCalibration).length > 0;
   const cacheKey = `${seed.toLowerCase()}::${sources.join(",")}::${language}::${market}`;
   const cached = cache.get(cacheKey) as { grouped: unknown; total: number } | undefined;
 
   if (cached) {
-    const opportunities = scoreOpportunities(flattenGrouped(cached.grouped), topicMomentum).slice(0, 24);
+    const opportunities = scoreOpportunities(flattenGrouped(cached.grouped), topicMomentum, outcomeCalibration).slice(0, 24);
     await persistSearchHistory(userId, seed, sources, cached.grouped, cached.total);
     await recordSearchSignal({ seed, language, market, sources, resultCount: cached.total }).catch(() => undefined);
     return res.json({
-      seed,
-      cached: true,
-      language,
-      market,
-      methodology: "beta-structural-v1",
-      opportunities,
-      ...cached,
+      seed, cached: true, language, market,
+      methodology: calibrationActive ? "beta-structural-plus-outcomes-v2" : "beta-structural-v1",
+      outcomeCalibration: { active: calibrationActive, thresholds: OUTCOME_CALIBRATION_THRESHOLDS },
+      opportunities, ...cached,
     });
   }
 
@@ -99,20 +91,16 @@ router.post("/suggest", asyncHandler(async (req: Request, res: Response) => {
   const clustered = clusterResults(seed, rawPhrases);
   const grouped = groupByCategory(clustered);
   const payload = { grouped, total: clustered.length };
-  const opportunities = scoreOpportunities(clustered, topicMomentum).slice(0, 24);
+  const opportunities = scoreOpportunities(clustered, topicMomentum, outcomeCalibration).slice(0, 24);
   cache.set(cacheKey, payload);
-
   await persistSearchHistory(userId, seed, sources, grouped, clustered.length);
   await recordSearchSignal({ seed, language, market, sources, resultCount: clustered.length }).catch(() => undefined);
 
   return res.json({
-    seed,
-    cached: false,
-    language,
-    market,
-    methodology: "beta-structural-v1",
-    opportunities,
-    ...payload,
+    seed, cached: false, language, market,
+    methodology: calibrationActive ? "beta-structural-plus-outcomes-v2" : "beta-structural-v1",
+    outcomeCalibration: { active: calibrationActive, thresholds: OUTCOME_CALIBRATION_THRESHOLDS },
+    opportunities, ...payload,
   });
 }));
 

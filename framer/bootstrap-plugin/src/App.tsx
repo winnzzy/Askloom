@@ -2,6 +2,12 @@ import * as React from "react"
 import { framer } from "@framer/plugin"
 import { components, publicAppDefault, publicBackendDefault, type ComponentDefinition } from "./componentManifest"
 
+framer.showUI({
+  position: "top right",
+  width: 360,
+  height: 560,
+})
+
 type Action = "created" | "updated" | "unchanged" | "failed"
 type Result = { name: string; action: Action; detail: string }
 type Preflight = {

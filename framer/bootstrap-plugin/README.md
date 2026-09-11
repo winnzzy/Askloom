@@ -7,10 +7,14 @@ This helper installs/syncs the AskLoom Code Components into a Framer project usi
 2. Run `npm run typecheck`.
 3. Run `npm run build`.
 4. Run `npm run dev`.
-5. In Framer, enable Plugin Developer Tools and choose **Open Development Plugin**.
-6. Click **Install AskLoom Components**.
+5. Keep the dev server running. The localhost URL is a Framer development endpoint, not the normal installation interface.
+6. In the intended Framer project, use Framer's development plugin workflow to open the local AskLoom Bootstrap plugin. If the dev server or Framer prompts for the opener, use `https://framer.com/plugins/open/`.
+7. Verify preflight shows `Framer API available: Yes`, `Running inside Framer: Yes`, and `Mode: canvas`.
+8. Click **Install AskLoom Components**.
 
-This folder is intentionally self-contained so the AskLoom repository can validate the bootstrap plugin without creating a second scaffold elsewhere. It uses the current `@framer/plugin` package, not the deprecated `framer-plugin` package.
+Opening the localhost URL directly in a browser is useful only to confirm the UI renders. It should not enable installation there because the Framer Plugin API is unavailable outside the Framer editor host.
+
+This folder is intentionally self-contained so the AskLoom repository can validate the bootstrap plugin without creating a second scaffold elsewhere. It uses `@framer/plugin` with the current official scaffold pattern: Vite, `vite-plugin-framer`, `framer.json`, and `framer.showUI(...)`.
 
 The plugin pulls the current component source from:
 `https://raw.githubusercontent.com/winnzzy/Askloom/master/framer/code/`

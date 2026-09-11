@@ -12,11 +12,27 @@ npm run dev
 
 Keep the terminal running while the Framer editor is open.
 
+Do not use the localhost URL as a normal browser installer. The local URL is the development endpoint Framer loads into its plugin host. If you open it directly in Chrome, the preflight should report that the Framer API is unavailable.
+
 ## B. Framer
 
 Open the intended AskLoom Framer project.
 
-Open Framer Developer Tools / Development Plugins using the current Framer plugin workflow, then load the local AskLoom Bootstrap plugin from `framer/bootstrap-plugin`.
+Open Framer's development plugin workflow from inside the Framer editor. The current scaffold points Framer to the local development server via `vite-plugin-framer`; use Framer's **Open Development Plugin** flow, or visit Framer's plugin opener if prompted by the dev server:
+
+```text
+https://framer.com/plugins/open/
+```
+
+Select/open the local AskLoom Bootstrap development plugin while `npm run dev` is still running.
+
+The plugin must open inside Framer. Preflight should then report:
+
+```text
+Framer API available: Yes
+Running inside Framer: Yes
+Mode: canvas
+```
 
 ## C. Run bootstrap
 

@@ -1,5 +1,6 @@
 {
   "id": "askloom-component-bootstrap",
   "name": "AskLoom Bootstrap",
-  "modes": ["canvas"]
+  "modes": ["canvas"],
+  "icon": "/icon.svg"
 }

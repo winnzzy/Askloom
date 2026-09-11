@@ -10,6 +10,13 @@ export interface SuggestionLocale {
   market?: string;
 }
 
+export interface SuggestionEvidence {
+  sources: Array<"google" | "youtube">;
+  occurrences: number;
+}
+
+export type SuggestionEvidenceMap = Record<string, SuggestionEvidence>;
+
 async function fetchGoogleSuggestions(query: string, locale: SuggestionLocale = {}): Promise<string[]> {
   try {
     const res = await axios.get("https://suggestqueries.google.com/complete/search", {
@@ -57,20 +64,48 @@ async function runBatched(
   return results;
 }
 
+function normalizePhrase(value: string) {
+  return value.trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+export async function gatherSuggestionsWithEvidence(
+  seed: string,
+  sources: ("google" | "youtube")[] = ["google", "youtube"],
+  locale: SuggestionLocale = {}
+): Promise<{ phrases: string[]; evidence: SuggestionEvidenceMap }> {
+  const queries = buildExpansionQueries(seed.trim());
+  const evidence = new Map<string, { phrase: string; sources: Set<"google" | "youtube">; occurrences: number }>();
+
+  async function collect(source: "google" | "youtube", fetcher: (q: string) => Promise<string[]>) {
+    const values = await runBatched(queries, fetcher);
+    for (const raw of values) {
+      if (typeof raw !== "string") continue;
+      const phrase = raw.trim().replace(/\s+/g, " ");
+      if (!phrase) continue;
+      const key = normalizePhrase(phrase);
+      const current = evidence.get(key) ?? { phrase, sources: new Set<"google" | "youtube">(), occurrences: 0 };
+      current.sources.add(source);
+      current.occurrences += 1;
+      evidence.set(key, current);
+    }
+  }
+
+  if (sources.includes("google")) await collect("google", query => fetchGoogleSuggestions(query, locale));
+  if (sources.includes("youtube")) await collect("youtube", query => fetchYoutubeSuggestions(query, locale));
+
+  const output: SuggestionEvidenceMap = {};
+  const phrases: string[] = [];
+  for (const [key, value] of evidence.entries()) {
+    phrases.push(value.phrase);
+    output[key] = { sources: Array.from(value.sources), occurrences: value.occurrences };
+  }
+  return { phrases, evidence: output };
+}
+
 export async function gatherSuggestions(
   seed: string,
   sources: ("google" | "youtube")[] = ["google", "youtube"],
   locale: SuggestionLocale = {}
 ): Promise<string[]> {
-  const queries = buildExpansionQueries(seed.trim());
-  const all: string[] = [];
-
-  if (sources.includes("google")) {
-    all.push(...(await runBatched(queries, (query) => fetchGoogleSuggestions(query, locale))));
-  }
-  if (sources.includes("youtube")) {
-    all.push(...(await runBatched(queries, (query) => fetchYoutubeSuggestions(query, locale))));
-  }
-
-  return all;
+  return (await gatherSuggestionsWithEvidence(seed, sources, locale)).phrases;
 }

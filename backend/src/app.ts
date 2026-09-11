@@ -27,7 +27,14 @@ const app = express();
 app.set("trust proxy", 1);
 app.use(requestId);
 app.use(helmet());
-app.use(cors({ origin: config.frontendUrl, credentials: true }));
+const allowedOrigins = new Set([config.frontendUrl, config.marketingUrl].filter((value): value is string => Boolean(value)));
+app.use(cors({
+  origin(origin, callback) {
+    if (!origin || allowedOrigins.has(origin)) return callback(null, true);
+    return callback(new Error("Origin not allowed"));
+  },
+  credentials: true,
+}));
 morgan.token("request-id", (_req, res) => String((res as express.Response).locals.requestId ?? "-"));
 app.use(morgan(config.nodeEnv === "production" ? ":method :url :status :res[content-length] - :response-time ms :request-id" : "dev"));
 app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 300, standardHeaders: true, legacyHeaders: false }));

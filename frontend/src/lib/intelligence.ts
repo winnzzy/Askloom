@@ -22,6 +22,12 @@ export interface Opportunity {
   intent: "question" | "comparison" | "commercial" | "problem-solving" | "discovery";
   badges: string[];
   reasons: string[];
+  outcomeCalibration?: {
+    adjustment: number;
+    sampleSize: number;
+    creatorCount: number;
+    methodology: string;
+  };
 }
 
 export interface ResearchResponse {
@@ -31,6 +37,16 @@ export interface ResearchResponse {
   methodology: string;
   language: ResearchLanguage;
   market: ResearchMarket;
+  outcomeCalibration?: {
+    active: boolean;
+    thresholds: {
+      minTotalItems: number;
+      minTotalCreators: number;
+      minCategoryItems: number;
+      minCategoryCreators: number;
+      maxAdjustment: number;
+    };
+  };
 }
 
 export async function fetchLocalizedSuggestions(

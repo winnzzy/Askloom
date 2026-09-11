@@ -1,4 +1,5 @@
 import type { ClusteredResult } from "../utils/cluster";
+import type { OutcomeCalibrationMap } from "./outcomeCalibration";
 
 export interface OpportunityScore {
   phrase: string;
@@ -8,6 +9,12 @@ export interface OpportunityScore {
   intent: "question" | "comparison" | "commercial" | "problem-solving" | "discovery";
   badges: string[];
   reasons: string[];
+  outcomeCalibration?: {
+    adjustment: number;
+    sampleSize: number;
+    creatorCount: number;
+    methodology: string;
+  };
 }
 
 const COMMERCIAL_TERMS = [
@@ -43,7 +50,8 @@ function specificityScore(phrase: string) {
 
 export function scoreOpportunities(
   clustered: ClusteredResult[],
-  topicMomentum = 0
+  topicMomentum = 0,
+  outcomeCalibration: OutcomeCalibrationMap = {}
 ): OpportunityScore[] {
   return clustered
     .map((result) => {
@@ -91,14 +99,22 @@ export function scoreOpportunities(
         reasons.push("Topic is gaining first-party AskLoom research activity");
       }
 
+      const calibration = outcomeCalibration[result.category];
+      if (calibration) {
+        score += calibration.adjustment;
+        badges.push("Outcome calibrated");
+        reasons.push(`Based on aggregated outcomes from ${calibration.sampleSize} published items across ${calibration.creatorCount} creators`);
+      }
+
       return {
         phrase: result.phrase,
         category: result.category,
         subgroup: result.subgroup,
         score: Math.max(1, Math.min(99, score)),
         intent,
-        badges: badges.slice(0, 3),
-        reasons: reasons.slice(0, 3),
+        badges: badges.slice(0, 4),
+        reasons: reasons.slice(0, 4),
+        ...(calibration ? { outcomeCalibration: calibration } : {}),
       };
     })
     .sort((a, b) => b.score - a.score || a.phrase.localeCompare(b.phrase));
